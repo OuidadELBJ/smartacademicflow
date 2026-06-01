@@ -1,0 +1,34 @@
+# Java / Maven
+backend/target/
+*.class
+*.jar
+*.war
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Python
+ai-service/__pycache__/
+ai-service/*.pyc
+ai-service/.venv/
+ai-service/data/
+
+# Docker volumes
+postgres_data/
+redis_data/
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

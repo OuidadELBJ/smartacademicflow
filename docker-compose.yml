@@ -51,7 +51,7 @@ services:
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SPRING_REDIS_PASSWORD: saf_redis_pass
-      JWT_SECRET: SmartAcademicFlow_JWT_SuperSecret_Key_2024_Production
+      JWT_SECRET: U21hcnRBY2FkZW1pY0Zsb3dKV1RTdXBlclNlY3JldEtleTIwMjRQcm9kdWN0aW9uS2V5TXVzdEJlMjU2Qml0cyEh
       AI_SERVICE_URL: http://ai-service:8000
     ports:
       - "8080:8080"

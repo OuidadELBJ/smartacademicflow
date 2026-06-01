@@ -11,7 +11,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -36,6 +36,10 @@ spring:
           starttls:
             enable: true
 
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+
 server:
   port: 8080
   servlet:
@@ -44,7 +48,7 @@ server:
 # JWT Configuration
 app:
   jwt:
-    secret: ${JWT_SECRET:SmartAcademicFlow_JWT_SuperSecret_Key_2024_Production}
+    secret: ${JWT_SECRET:U21hcnRBY2FkZW1pY0Zsb3dKV1RTdXBlclNlY3JldEtleTIwMjRQcm9kdWN0aW9uS2V5TXVzdEJlMjU2Qml0cyEh}
     expiration: ${JWT_EXPIRATION:86400000}
   ai-service:
     url: ${AI_SERVICE_URL:http://localhost:8000}

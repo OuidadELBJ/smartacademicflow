@@ -1,17 +1,10 @@
 import os
+import re
 from typing import Optional
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/app/data/chroma")
-DOCUMENTS_DIR = os.getenv("DOCUMENTS_DIR", "/app/data/documents")
 
-
-# Reglement interieur par defaut (integre pour demo)
+# Reglement interieur integre pour demo
 REGLEMENT_INTERIEUR = """
 REGLEMENT INTERIEUR - ENSIAS
 Universite Mohammed V de Rabat
@@ -89,117 +82,112 @@ de la competence du conseil de l'etablissement.
 
 class RAGService:
     """
-    Service RAG (Retrieval-Augmented Generation) pour interroger
-    le reglement interieur de maniere intelligente.
+    Service RAG simplifie pour interroger le reglement interieur.
+    Utilise une recherche par mots-cles sans dependance PyTorch.
     """
 
     def __init__(self):
-        self.embeddings = None
-        self.vectorstore = None
-        self.qa_chain = None
         self._initialized = False
+        self.articles = {}
+        self.vectorstore = None
+        self._parse_articles()
+
+    def _parse_articles(self):
+        """Parse le reglement en articles individuels."""
+        current_article = None
+        current_text = []
+
+        for line in REGLEMENT_INTERIEUR.strip().split("\n"):
+            line = line.strip()
+            match = re.match(r"^Article\s+(\d+)\s*:", line)
+            if match:
+                if current_article:
+                    self.articles[current_article] = " ".join(current_text).strip()
+                current_article = f"Article {match.group(1)}"
+                current_text = [line[match.end():].strip()]
+            elif current_article and line:
+                current_text.append(line)
+
+        if current_article:
+            self.articles[current_article] = " ".join(current_text).strip()
+
+        self._initialized = True
 
     def initialize(self):
-        """Initialise le vectorstore avec le reglement interieur."""
-        if self._initialized:
-            return
+        """Reinitialise le parsing si necessaire."""
+        if not self._initialized:
+            self._parse_articles()
 
-        try:
-            # Embeddings multilingues
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
+    def _search_articles(self, question: str, top_k: int = 3) -> list[dict]:
+        """Recherche les articles pertinents par mots-cles."""
+        question_lower = question.lower()
+        question_words = set(re.findall(r"\w+", question_lower))
 
-            # Decoupage du texte en chunks
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=500,
-                chunk_overlap=100,
-                separators=["\n\n", "\n", "Article", ". ", " "],
-            )
+        scores = []
+        for article_name, content in self.articles.items():
+            content_lower = content.lower()
+            content_words = set(re.findall(r"\w+", content_lower))
 
-            chunks = text_splitter.split_text(REGLEMENT_INTERIEUR)
+            # Score = nombre de mots en commun
+            common = question_words.intersection(content_words)
+            score = len(common)
 
-            # Creer le vectorstore
-            self.vectorstore = Chroma.from_texts(
-                texts=chunks,
-                embedding=self.embeddings,
-                persist_directory=CHROMA_PERSIST_DIR,
-                collection_name="reglement_interieur",
-            )
+            # Bonus si le numero d'article est mentionne
+            art_num = re.search(r"\d+", article_name)
+            if art_num and art_num.group() in question:
+                score += 10
 
-            self._initialized = True
+            # Bonus mots-cles importants
+            important_keywords = ["absence", "injustifiee", "rachat", "deliberation",
+                                  "jury", "certificat", "note", "pv", "validation",
+                                  "cloture", "fraude", "rattrapage", "examen"]
+            for kw in important_keywords:
+                if kw in question_lower and kw in content_lower:
+                    score += 3
 
-        except Exception as e:
-            print(f"[RAG] Erreur initialisation: {e}")
-            self._initialized = False
+            if score > 0:
+                scores.append((article_name, content, score))
+
+        scores.sort(key=lambda x: x[2], reverse=True)
+        return [
+            {"article": name, "extrait": text[:200], "score": score}
+            for name, text, score in scores[:top_k]
+        ]
 
     def query(self, question: str) -> dict:
-        """Interroge le reglement interieur via RAG."""
-
+        """Interroge le reglement interieur."""
         if not self._initialized:
             self.initialize()
 
-        if not self._initialized or self.vectorstore is None:
-            return {
-                "reponse": "Le service RAG n'est pas disponible actuellement.",
-                "sources": [],
-                "confiance": 0.0,
-            }
+        results = self._search_articles(question)
 
-        # Recherche de similarite
-        docs = self.vectorstore.similarity_search_with_score(question, k=3)
-
-        if not docs:
+        if not results:
             return {
                 "reponse": "Aucune information pertinente trouvee dans le reglement.",
                 "sources": [],
                 "confiance": 0.0,
             }
 
-        # Construire le contexte
-        context_parts = []
-        sources = []
-        total_score = 0.0
+        sources = [
+            {"article": r["article"], "page": None, "extrait": r["extrait"]}
+            for r in results
+        ]
 
-        for doc, score in docs:
-            context_parts.append(doc.page_content)
-            # Extraire le numero d'article
-            article_num = self._extract_article_number(doc.page_content)
-            sources.append({
-                "article": article_num or "Section non numerotee",
-                "page": None,
-                "extrait": doc.page_content[:200],
-            })
-            total_score += (1 - score)  # ChromaDB: distance, donc 1-score = similarite
+        max_score = results[0]["score"] if results else 0
+        confiance = min(max_score / 15.0, 1.0)
 
-        avg_confidence = min(total_score / len(docs), 1.0)
-        context = "\n\n".join(context_parts)
-
-        # Generer la reponse (sans LLM externe, on fait du retrieval pur)
-        reponse = self._generate_response(question, context, sources)
+        reponse = self._generate_response(question, results)
 
         return {
             "reponse": reponse,
             "sources": sources,
-            "confiance": round(avg_confidence, 2),
+            "confiance": round(confiance, 2),
         }
 
-    def _extract_article_number(self, text: str) -> Optional[str]:
-        """Extrait le numero d'article du texte."""
-        import re
-        match = re.search(r"Article\s+(\d+)", text)
-        if match:
-            return f"Article {match.group(1)}"
-        return None
-
-    def _generate_response(self, question: str, context: str, sources: list) -> str:
-        """
-        Genere une reponse structuree basee sur le contexte recupere.
-        En production, ceci serait remplace par un appel LLM (GPT-4, etc.)
-        """
+    def _generate_response(self, question: str, results: list) -> str:
+        """Genere une reponse basee sur les articles trouves."""
         question_lower = question.lower()
 
-        # Reponses intelligentes basees sur les articles recuperes
         if "article 39" in question_lower or "absence injustifiee" in question_lower:
             return (
                 "Selon l'Article 39 du reglement interieur : "
@@ -234,7 +222,7 @@ class RAGService:
                 "familiaux graves."
             )
 
-        if "pv" in question_lower or "validation" in question_lower:
+        if "pv" in question_lower or "validation" in question_lower or "cloture" in question_lower:
             return (
                 "Selon les Articles 38 et 48 : Les notes deviennent definitives "
                 "apres validation du PV semestriel par le chef de filiere. "
@@ -242,11 +230,21 @@ class RAGService:
                 "ulterieure n'est possible sauf erreur materielle constatee."
             )
 
-        # Reponse generique basee sur le contexte
-        return (
-            f"D'apres le reglement interieur, voici les elements pertinents "
-            f"concernant votre question :\n\n{context[:500]}"
-        )
+        if "fraude" in question_lower:
+            return (
+                "Selon l'Article 40 : En cas de fraude averee, l'etudiant encourt "
+                "l'exclusion definitive et la note 0/20 a l'ensemble du module."
+            )
+
+        if "rattrapage" in question_lower:
+            return (
+                "Selon l'Article 33 : Le rattrapage est accorde aux etudiants "
+                "ayant obtenu une note comprise entre 7 et 10/20."
+            )
+
+        # Reponse generique
+        context = "\n".join([f"- {r['article']} : {r['extrait']}" for r in results])
+        return f"D'apres le reglement interieur :\n\n{context}"
 
 
 # Singleton

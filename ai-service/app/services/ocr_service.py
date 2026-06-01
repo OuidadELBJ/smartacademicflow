@@ -9,7 +9,7 @@ from PIL import Image
 
 try:
     import spacy
-    nlp = spacy.load("fr_core_news_md")
+    nlp = spacy.load("fr_core_news_sm")
 except Exception:
     nlp = None
 

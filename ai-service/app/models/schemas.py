@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
 
 
 class OCRAnalyzeRequest(BaseModel):
@@ -19,6 +18,12 @@ class OCRAnalyzeResponse(BaseModel):
     couvre_date_examen: bool
 
 
+class RAGSource(BaseModel):
+    article: str
+    page: Optional[int] = None
+    extrait: str
+
+
 class RAGQueryRequest(BaseModel):
     question: str
 
@@ -27,13 +32,3 @@ class RAGQueryResponse(BaseModel):
     reponse: str
     sources: list[RAGSource]
     confiance: float
-
-
-class RAGSource(BaseModel):
-    article: str
-    page: Optional[int] = None
-    extrait: str
-
-
-# Fix forward reference
-RAGQueryResponse.model_rebuild()

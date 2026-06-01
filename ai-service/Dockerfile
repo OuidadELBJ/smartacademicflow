@@ -15,9 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy French model (small version for speed)
-RUN python -m spacy download fr_core_news_sm
-
 COPY . .
 
 RUN mkdir -p /app/data/chroma /app/data/documents

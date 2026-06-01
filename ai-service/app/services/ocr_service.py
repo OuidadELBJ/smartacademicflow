@@ -7,11 +7,7 @@ from typing import Optional, Tuple
 import pytesseract
 from PIL import Image
 
-try:
-    import spacy
-    nlp = spacy.load("fr_core_news_sm")
-except Exception:
-    nlp = None
+nlp = None
 
 
 class OCRService:

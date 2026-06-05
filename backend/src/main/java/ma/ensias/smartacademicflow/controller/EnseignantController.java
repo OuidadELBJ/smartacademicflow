@@ -15,10 +15,10 @@ import ma.ensias.smartacademicflow.service.AbsenceService;
 import ma.ensias.smartacademicflow.service.NoteService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -32,38 +32,42 @@ public class EnseignantController {
     private final UserRepository userRepository;
 
     @GetMapping("/mes-elements")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getMesElements(Authentication auth) {
         User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
         List<ElementModule> elements = elementModuleRepository.findByEnseignantId(enseignant.getId());
 
-        List<Map<String, Object>> result = elements.stream().map(el -> Map.<String, Object>of(
-            "id", el.getId(),
-            "code", el.getCode(),
-            "intitule", el.getIntitule(),
-            "coefficient", el.getCoefficient(),
-            "moduleIntitule", el.getModule().getIntitule(),
-            "moduleCode", el.getModule().getCode(),
-            "semestre", el.getModule().getSemestre(),
-            "filiereCode", el.getModule().getFiliere().getCode(),
-            "filiereIntitule", el.getModule().getFiliere().getIntitule()
-        )).collect(Collectors.toList());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ElementModule el : elements) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", el.getId());
+            map.put("code", el.getCode());
+            map.put("intitule", el.getIntitule());
+            map.put("coefficient", el.getCoefficient());
+            map.put("moduleIntitule", el.getModule().getIntitule());
+            map.put("moduleCode", el.getModule().getCode());
+            map.put("semestre", el.getModule().getSemestre());
+            map.put("filiereCode", el.getModule().getFiliere().getCode());
+            map.put("filiereIntitule", el.getModule().getFiliere().getIntitule());
+            result.add(map);
+        }
 
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/etudiants")
     public ResponseEntity<List<Map<String, Object>>> getEtudiants() {
-        // Retourne tous les etudiants (simules avec role ENS pour la demo)
-        List<User> etudiants = userRepository.findByRole(Role.ENS);
-        List<Map<String, Object>> result = etudiants.stream()
-            .filter(u -> !u.getEmail().startsWith("enseignant"))
-            .map(u -> Map.<String, Object>of(
-                "id", u.getId(),
-                "nom", u.getNom(),
-                "prenom", u.getPrenom(),
-                "email", u.getEmail()
-            ))
-            .collect(Collectors.toList());
+        List<User> allUsers = userRepository.findByRole(Role.ENS);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (User u : allUsers) {
+            if (u.getEmail().startsWith("enseignant")) continue;
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", u.getId());
+            map.put("nom", u.getNom());
+            map.put("prenom", u.getPrenom());
+            map.put("email", u.getEmail());
+            result.add(map);
+        }
         return ResponseEntity.ok(result);
     }
 
@@ -92,22 +96,26 @@ public class EnseignantController {
     }
 
     @GetMapping("/absences/mes-absences")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getMesAbsences(Authentication auth) {
         User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
         List<ElementModule> elements = elementModuleRepository.findByEnseignantId(enseignant.getId());
 
-        List<Map<String, Object>> allAbsences = elements.stream()
-            .flatMap(el -> absenceService.getAbsencesByElement(el.getId()).stream()
-                .map(abs -> Map.<String, Object>of(
-                    "id", abs.getId(),
-                    "etudiantNom", abs.getEtudiant().getNom(),
-                    "etudiantPrenom", abs.getEtudiant().getPrenom(),
-                    "elementIntitule", el.getIntitule(),
-                    "elementId", el.getId(),
-                    "dateAbsence", abs.getDateAbsence().toString(),
-                    "type", abs.getType().name()
-                ))
-            ).collect(Collectors.toList());
+        List<Map<String, Object>> allAbsences = new ArrayList<>();
+        for (ElementModule el : elements) {
+            List<Absence> absences = absenceService.getAbsencesByElement(el.getId());
+            for (Absence abs : absences) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", abs.getId());
+                map.put("etudiantNom", abs.getEtudiant().getNom());
+                map.put("etudiantPrenom", abs.getEtudiant().getPrenom());
+                map.put("elementIntitule", el.getIntitule());
+                map.put("elementId", el.getId());
+                map.put("dateAbsence", abs.getDateAbsence().toString());
+                map.put("type", abs.getType().name());
+                allAbsences.add(map);
+            }
+        }
 
         return ResponseEntity.ok(allAbsences);
     }

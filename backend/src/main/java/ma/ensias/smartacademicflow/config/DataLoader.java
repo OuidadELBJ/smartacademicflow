@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -319,10 +320,13 @@ public class DataLoader implements CommandLineRunner {
         createModulesD2S(filieres.get(7), responsables.get(7), enseignants);
         createModulesSSE(filieres.get(8), responsables.get(8), enseignants);
 
+        // Pre-remplir notes pour TOUTES les filieres (laisser 5 derniers par filiere pour demo)
+        log.info("Pre-remplissage des notes pour toutes les filieres...");
+        prefillAllNotes();
+
         log.info("=== DONNEES ENSIAS INITIALISEES ===");
         log.info("Filieres: 9 | Enseignants: 12 | RM: 9 | CF: 9");
-        log.info("Etudiants: 400+ repartis sur toutes les filieres");
-        log.info("Structure: 1A(S1/S2), 2A(S3/S4), 3A(S5/S6-PFE)");
+        log.info("Etudiants: 400+ | Notes pre-remplies (5 derniers/filiere libres pour demo)");
         log.info("====================================");
     }
 
@@ -353,8 +357,7 @@ public class DataLoader implements CommandLineRunner {
         elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E1").intitule("Tests & TDD").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m5).enseignant(ens.get(9)).build());
         elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E2").intitule("Methodes Agiles").coefficient(1.0).hasTd(false).hasTp(false).hasProjet(true).module(m5).enseignant(ens.get(10)).build());
 
-        // Pre-remplir notes EXAM pour les ~70 premiers etudiants GL (laisser les derniers pour demo)
-        prefillNotesForFiliere("gl", m1.getId(), ens.get(0).getId());
+        // Notes pre-remplies via prefillAllNotes() apres toutes les filieres
     }
 
     private void createModules2IA(Filiere f, User rm, List<User> ens) {
@@ -442,55 +445,87 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
-     * Pre-remplit des notes pour la majorite des etudiants d'une filiere.
-     * Laisse les 5 derniers sans notes pour la demo.
+     * Pre-remplit des notes pour TOUS les etudiants de TOUTES les filieres.
+     * Laisse les 5 derniers de chaque filiere sans notes pour la demo.
      */
-    private void prefillNotesForFiliere(String filierePrefix, Long moduleId, Long enseignantId) {
-        List<User> etudiants = userRepository.findByRole(Role.ENS);
-        List<ElementModule> elements = elementModuleRepository.findByModuleId(moduleId);
+    private void prefillAllNotes() {
+        String[] filierePrefixes = {"gl", "2ia", "bia", "idf", "cscc", "sse", "d2s", "2scl"};
+        List<ElementModule> allElements = elementModuleRepository.findAll();
+        java.util.Random random = new java.util.Random(42);
 
-        java.util.Random random = new java.util.Random(42); // seed pour reproductibilite
-        int count = 0;
+        for (String prefix : filierePrefixes) {
+            // Recuperer etudiants de cette filiere
+            List<User> filiereEtudiants = userRepository.findByRole(Role.ENS).stream()
+                .filter(u -> u.getEmail().startsWith(prefix + "."))
+                .collect(java.util.stream.Collectors.toList());
 
-        for (User etu : etudiants) {
-            if (!etu.getEmail().startsWith(filierePrefix + ".")) continue;
+            if (filiereEtudiants.isEmpty()) continue;
 
-            // Laisser les 5 derniers pour la demo manuelle
-            count++;
-            int totalForFiliere = (int) etudiants.stream()
-                .filter(u -> u.getEmail().startsWith(filierePrefix + ".")).count();
-            if (count > totalForFiliere - 5) break;
+            // Trouver les elements de cette filiere
+            String filiereCodeUpper = prefix.toUpperCase();
+            if (prefix.equals("bia")) filiereCodeUpper = "BIA";
+            if (prefix.equals("2ia")) filiereCodeUpper = "2IA";
+            if (prefix.equals("2scl")) filiereCodeUpper = "2SCL";
+            if (prefix.equals("cscc")) filiereCodeUpper = "CSCC";
+            if (prefix.equals("d2s")) filiereCodeUpper = "D2S";
+            if (prefix.equals("sse")) filiereCodeUpper = "SSE";
+            if (prefix.equals("idf")) filiereCodeUpper = "IDF";
 
-            for (ElementModule el : elements) {
-                // Note Exam entre 7 et 18
-                double examNote = 7.0 + random.nextDouble() * 11.0;
-                examNote = Math.round(examNote * 4) / 4.0; // arrondir au 0.25
-                noteRepository.save(Note.builder()
-                    .etudiant(etu).elementModule(el)
-                    .typeEvaluation(TypeEvaluation.EXAM)
-                    .valeur(examNote).build());
+            final String codePrefix = filiereCodeUpper;
+            List<ElementModule> filiereElements = allElements.stream()
+                .filter(el -> el.getCode().startsWith(codePrefix))
+                .collect(java.util.stream.Collectors.toList());
 
-                // Note TD si element a TD
-                if (el.isHasTd()) {
-                    double tdNote = 10.0 + random.nextDouble() * 10.0;
-                    tdNote = Math.round(tdNote * 4) / 4.0;
+            if (filiereElements.isEmpty()) continue;
+
+            // Remplir les notes pour tous SAUF les 5 derniers
+            int limit = Math.max(0, filiereEtudiants.size() - 5);
+
+            for (int i = 0; i < limit; i++) {
+                User etu = filiereEtudiants.get(i);
+
+                for (ElementModule el : filiereElements) {
+                    // Note EXAM : entre 5 et 19, distribution realiste
+                    double examNote = 5.0 + random.nextDouble() * 14.0;
+                    examNote = Math.round(examNote * 4) / 4.0;
                     noteRepository.save(Note.builder()
                         .etudiant(etu).elementModule(el)
-                        .typeEvaluation(TypeEvaluation.TD)
-                        .valeur(tdNote).build());
-                }
+                        .typeEvaluation(TypeEvaluation.EXAM)
+                        .valeur(examNote).build());
 
-                // Note TP si element a TP
-                if (el.isHasTp()) {
-                    double tpNote = 8.0 + random.nextDouble() * 12.0;
-                    tpNote = Math.round(tpNote * 4) / 4.0;
-                    noteRepository.save(Note.builder()
-                        .etudiant(etu).elementModule(el)
-                        .typeEvaluation(TypeEvaluation.TP)
-                        .valeur(tpNote).build());
+                    // Note TD (si dispo) : entre 10 et 20
+                    if (el.isHasTd()) {
+                        double tdNote = 10.0 + random.nextDouble() * 10.0;
+                        tdNote = Math.round(tdNote * 4) / 4.0;
+                        noteRepository.save(Note.builder()
+                            .etudiant(etu).elementModule(el)
+                            .typeEvaluation(TypeEvaluation.TD)
+                            .valeur(tdNote).build());
+                    }
+
+                    // Note TP (si dispo) : entre 8 et 19
+                    if (el.isHasTp()) {
+                        double tpNote = 8.0 + random.nextDouble() * 11.0;
+                        tpNote = Math.round(tpNote * 4) / 4.0;
+                        noteRepository.save(Note.builder()
+                            .etudiant(etu).elementModule(el)
+                            .typeEvaluation(TypeEvaluation.TP)
+                            .valeur(tpNote).build());
+                    }
+
+                    // Note PROJET (si dispo) : entre 12 et 20
+                    if (el.isHasProjet()) {
+                        double projetNote = 12.0 + random.nextDouble() * 8.0;
+                        projetNote = Math.round(projetNote * 4) / 4.0;
+                        noteRepository.save(Note.builder()
+                            .etudiant(etu).elementModule(el)
+                            .typeEvaluation(TypeEvaluation.PROJET)
+                            .valeur(projetNote).build());
+                    }
                 }
             }
+            log.info("  {} : {}/{} etudiants pre-remplis ({} elements)",
+                prefix, limit, filiereEtudiants.size(), filiereElements.size());
         }
-        log.info("Pre-remplissage notes {} : {} etudiants traites", filierePrefix, count);
     }
 }

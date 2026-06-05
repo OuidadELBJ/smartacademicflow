@@ -331,6 +331,7 @@
 /* Right Box */
 .ensias-login__right {
   width: 320px;
+  min-height: 100%;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   display: flex;
   align-items: center;
@@ -364,6 +365,12 @@
   z-index: 1;
   text-align: center;
   padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .ensias-login__right-content svg {

@@ -33,19 +33,22 @@ export default function DashboardPage() {
         const elems: ElementData[] = res.data;
         setElements(elems);
 
-        // Calculer stats reelles
+        // Calculer stats reelles par element
         let totalNotes = 0;
         let totalExpected = 0;
         for (const el of elems) {
           try {
-            const notesRes = await api.get(`/enseignant/notes/element/${el.id}?type=EXAM`);
+            const filierePrefix = el.filiereCode.toLowerCase().replace(/&/g, "").replace(/\s/g, "");
+            const [notesRes, etusRes] = await Promise.all([
+              api.get(`/enseignant/notes/element/${el.id}?type=EXAM`),
+              api.get(`/enseignant/etudiants?filiere=${encodeURIComponent(filierePrefix)}`),
+            ]);
             totalNotes += notesRes.data.length;
+            totalExpected += etusRes.data.length;
           } catch {}
-          // Estimer le nombre attendu (simplifie)
-          totalExpected += 30; // ~30 etudiants par filiere en moyenne
         }
         const prog = totalExpected > 0 ? Math.round((totalNotes / totalExpected) * 100) : 0;
-        setStats({ totalElements: elems.length, notesCount: totalNotes, progression: Math.min(prog, 100) });
+        setStats({ totalElements: elems.length, notesCount: totalNotes, progression: prog });
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };

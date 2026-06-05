@@ -5,7 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api";
 import {
   ClipboardList, CheckCircle, Clock, TrendingUp, BarChart3,
-  Users, AlertTriangle, Send,
+  Users, AlertTriangle, Send, Bell, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,9 @@ interface DashboardData {
 export default function SuiviPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [relanced, setRelanced] = useState<Set<number>>(new Set());
   const [relancing, setRelancing] = useState<number | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,102 +50,182 @@ export default function SuiviPage() {
         moduleIntitule: el.moduleIntitule,
         elementIntitule: el.elementIntitule,
       });
+      setRelanced(prev => { const s = new Set(Array.from(prev)); s.add(el.elementId); return s; });
+      setToast(`Relance envoyee a ${el.enseignantNom}`);
+      setTimeout(() => setToast(""), 4000);
     } catch {}
-    setTimeout(() => setRelancing(null), 2000);
+    finally { setRelancing(null); }
   };
 
   if (loading || !data) {
     return <DashboardLayout><div className="flex items-center justify-center h-64"><div className="animate-pulse text-slate-400">Chargement...</div></div></DashboardLayout>;
   }
 
+  const enRetard = data.elementsProgress.filter(e => e.progression < 80);
+  const circumference = 2 * Math.PI * 54;
+  const progressOffset = circumference - (data.progressionGlobale / 100) * circumference;
+
   return (
     <DashboardLayout>
-      <div className="flex items-center gap-3 mb-8">
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 p-4 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg flex items-center gap-2 animate-[slideIn_0.3s_ease]">
+          <CheckCircle size={16} strokeWidth={2} />
+          {toast}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
           <ClipboardList size={20} className="text-orange-600" strokeWidth={1.5} />
         </div>
         <div>
-          <h1 className="text-slate-900 text-xl font-bold">Tableau de Bord - Responsable Module</h1>
-          <p className="text-slate-500 text-xs">Suivi de l'avancement et KPIs academiques</p>
+          <h1 className="text-slate-900 text-xl font-bold">Tableau de Bord</h1>
+          <p className="text-slate-500 text-xs">Responsable de Module - Vue d'ensemble</p>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-        <div className="card text-center py-4">
-          <TrendingUp size={18} className="text-orange-600 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.progressionGlobale}%</p>
-          <p className="text-slate-500 text-[10px]">Progression saisie</p>
+      {/* Bento Grid */}
+      <div className="grid grid-cols-12 gap-4 mb-6">
+        {/* Jauge circulaire - grande carte */}
+        <div className="col-span-12 md:col-span-4 card flex flex-col items-center justify-center py-8">
+          <div className="relative w-32 h-32">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" strokeWidth="10" />
+              <circle cx="60" cy="60" r="54" fill="none" stroke="url(#gaugeGrad)" strokeWidth="10"
+                strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={progressOffset}
+                className="transition-all duration-1000" />
+              <defs>
+                <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#ee2927" />
+                  <stop offset="100%" stopColor="#ff8848" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold text-slate-900">{data.progressionGlobale}%</span>
+              <span className="text-[10px] text-slate-400">avancement</span>
+            </div>
+          </div>
+          <p className="text-slate-600 text-xs font-medium mt-3">Progression globale saisie</p>
+          <p className="text-slate-400 text-[10px]">{data.totalNotesSaisies} / {data.totalNotesAttendues} notes</p>
         </div>
-        <div className="card text-center py-4">
-          <BarChart3 size={18} className="text-blue-600 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.totalNotesSaisies}</p>
-          <p className="text-slate-500 text-[10px]">Notes saisies</p>
-        </div>
-        <div className="card text-center py-4">
-          <Users size={18} className="text-emerald-600 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.totalModules}</p>
-          <p className="text-slate-500 text-[10px]">Modules ({data.modulesEnCours} actifs)</p>
-        </div>
-        <div className="card text-center py-4">
-          <AlertTriangle size={18} className="text-red-500 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.totalAjournes}</p>
-          <p className="text-slate-500 text-[10px]">Ajournes (&lt;7)</p>
-        </div>
-        <div className="card text-center py-4">
-          <Clock size={18} className="text-amber-600 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.totalRattrapage}</p>
-          <p className="text-slate-500 text-[10px]">Rattrapage (7-10)</p>
-        </div>
-        <div className="card text-center py-4">
-          <CheckCircle size={18} className="text-violet-600 mx-auto mb-1.5" strokeWidth={1.5} />
-          <p className="text-slate-900 text-xl font-bold">{data.totalCasLimites}</p>
-          <p className="text-slate-500 text-[10px]">Cas limites (8-10)</p>
+
+        {/* KPIs colonne droite */}
+        <div className="col-span-12 md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="card py-5 text-center">
+            <Users size={18} className="text-blue-600 mx-auto mb-1" strokeWidth={1.5} />
+            <p className="text-slate-900 text-2xl font-bold">{data.totalModules}</p>
+            <p className="text-slate-400 text-[10px]">Modules ({data.modulesEnCours} actifs)</p>
+          </div>
+          <div className="card py-5 text-center">
+            <AlertTriangle size={18} className="text-red-500 mx-auto mb-1" strokeWidth={1.5} />
+            <p className="text-red-600 text-2xl font-bold">{data.totalAjournes}</p>
+            <p className="text-slate-400 text-[10px]">Ajournes (&lt;7/20)</p>
+          </div>
+          <div className="card py-5 text-center">
+            <Clock size={18} className="text-amber-600 mx-auto mb-1" strokeWidth={1.5} />
+            <p className="text-amber-600 text-2xl font-bold">{data.totalRattrapage}</p>
+            <p className="text-slate-400 text-[10px]">Rattrapage (7-10)</p>
+          </div>
+          <div className="card py-5 text-center">
+            <TrendingUp size={18} className="text-orange-600 mx-auto mb-1" strokeWidth={1.5} />
+            <p className="text-orange-600 text-2xl font-bold">{data.totalCasLimites}</p>
+            <p className="text-slate-400 text-[10px]">Cas limites (8-10)</p>
+          </div>
+
+          {/* Alertes recentes - occupe 4 colonnes */}
+          <div className="col-span-2 lg:col-span-4 card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell size={14} className="text-orange-600" strokeWidth={2} />
+              <span className="text-slate-800 text-xs font-bold">Alertes</span>
+            </div>
+            <div className="space-y-2">
+              {enRetard.length > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-100">
+                  <AlertTriangle size={12} className="text-red-500 shrink-0" strokeWidth={2} />
+                  <span className="text-red-700 text-[11px] font-medium">{enRetard.length} enseignant(s) en retard de saisie (&lt;80%)</span>
+                </div>
+              )}
+              {data.totalCasLimites > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
+                  <Clock size={12} className="text-amber-600 shrink-0" strokeWidth={2} />
+                  <span className="text-amber-700 text-[11px] font-medium">{data.totalCasLimites} etudiant(s) en cas limite - eligible(s) au rachat</span>
+                  <ArrowRight size={11} className="text-amber-400 ml-auto" strokeWidth={2} />
+                </div>
+              )}
+              {data.totalAjournes > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <Users size={12} className="text-slate-500 shrink-0" strokeWidth={2} />
+                  <span className="text-slate-600 text-[11px] font-medium">{data.totalAjournes} etudiant(s) ajourne(s) - note &lt;7/20</span>
+                </div>
+              )}
+              {enRetard.length === 0 && data.totalCasLimites === 0 && data.totalAjournes === 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
+                  <span className="text-emerald-700 text-[11px] font-medium">Tout est en ordre</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Progression par element */}
+      {/* Avancement par element */}
       <div className="card">
-        <h2 className="text-slate-900 text-sm font-bold mb-4">Avancement saisie par element</h2>
-        <div className="space-y-3">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-slate-900 text-sm font-bold">Avancement saisie par element</h2>
+          <span className="text-slate-400 text-[10px]">{data.elementsProgress.length} element(s)</span>
+        </div>
+        <div className="space-y-2.5">
           {data.elementsProgress.map((el) => (
-            <div key={el.elementId} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+            <div key={el.elementId} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
               <div className={cn(
-                "w-9 h-9 rounded-lg flex items-center justify-center",
+                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                 el.progression >= 100 ? "bg-emerald-50" : el.progression < 50 ? "bg-red-50" : "bg-orange-50"
               )}>
                 {el.progression >= 100
-                  ? <CheckCircle size={16} className="text-emerald-600" strokeWidth={1.5} />
-                  : <BarChart3 size={16} className={el.progression < 50 ? "text-red-500" : "text-orange-600"} strokeWidth={1.5} />
+                  ? <CheckCircle size={14} className="text-emerald-600" strokeWidth={2} />
+                  : <BarChart3 size={14} className={el.progression < 50 ? "text-red-500" : "text-orange-600"} strokeWidth={2} />
                 }
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-slate-800 text-sm font-medium">{el.elementIntitule}</p>
-                  <span className="text-slate-600 text-xs font-medium">{el.notesSaisies}/{el.totalEtudiants}</span>
+                  <p className="text-slate-800 text-xs font-medium truncate">{el.elementIntitule}</p>
+                  <span className="text-slate-500 text-[10px] ml-2">{el.notesSaisies}/{el.totalEtudiants}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{
-                    width: `${el.progression}%`,
+                    width: `${Math.min(el.progression, 100)}%`,
                     background: el.progression >= 100 ? "#10b981" : el.progression < 50 ? "#ef4444" : "linear-gradient(135deg, #ee2927, #ff8848)",
                   }} />
                 </div>
-                <p className="text-slate-400 text-[10px] mt-0.5">{el.enseignantNom} | {el.moduleIntitule} ({el.semestre})</p>
+                <p className="text-slate-400 text-[9px] mt-0.5">{el.enseignantNom} | {el.semestre}</p>
               </div>
 
-              <span className={cn("text-sm font-bold",
+              <span className={cn("text-xs font-bold w-10 text-right",
                 el.progression >= 100 ? "text-emerald-600" : el.progression < 50 ? "text-red-500" : "text-orange-600"
               )}>{el.progression}%</span>
 
               {el.progression < 100 && (
                 <button
                   onClick={() => handleRelance(el)}
-                  disabled={relancing === el.elementId}
-                  className="btn-secondary text-[10px] py-1.5 px-2.5"
+                  disabled={relancing === el.elementId || relanced.has(el.elementId)}
+                  className={cn(
+                    "text-[10px] py-1.5 px-2.5 rounded-lg font-medium transition-all flex items-center gap-1",
+                    relanced.has(el.elementId)
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      : "bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100"
+                  )}
                 >
-                  {relancing === el.elementId ? <CheckCircle size={11} strokeWidth={2} /> : <Send size={11} strokeWidth={2} />}
-                  {relancing === el.elementId ? "OK" : "Relancer"}
+                  {relancing === el.elementId ? (
+                    <span className="animate-spin w-3 h-3 border-2 border-orange-300 border-t-orange-600 rounded-full" />
+                  ) : relanced.has(el.elementId) ? (
+                    <><CheckCircle size={10} strokeWidth={2} />Relance</>
+                  ) : (
+                    <><Send size={10} strokeWidth={2} />Relancer</>
+                  )}
                 </button>
               )}
             </div>

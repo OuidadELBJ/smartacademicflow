@@ -66,7 +66,7 @@ export default function ChatbotPage() {
       // Try to find student by name
       if (words.length >= 1 && !q.toLowerCase().includes("regle") && !q.toLowerCase().includes("article")) {
         try {
-          const etuRes = await api.get("/enseignant/etudiants");
+          const etuRes = await api.get("/rm/etudiants");
           const etudiants = etuRes.data;
 
           // Search by name match

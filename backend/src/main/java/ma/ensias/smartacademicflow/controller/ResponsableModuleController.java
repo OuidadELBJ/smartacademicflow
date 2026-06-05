@@ -242,4 +242,37 @@ public class ResponsableModuleController {
         );
         return ResponseEntity.ok(Map.of("message", "Relance envoyee avec succes"));
     }
+
+    /**
+     * Liste des etudiants des filieres associees aux modules du RM
+     */
+    @GetMapping("/etudiants")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getEtudiants(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        Set<String> filierePrefixes = new HashSet<>();
+        for (Module mod : modules) {
+            String prefix = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            filierePrefixes.add(prefix);
+        }
+
+        List<User> allUsers = userRepository.findByRole(ma.ensias.smartacademicflow.domain.enums.Role.ENS);
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (User u : allUsers) {
+            if (u.getEmail().startsWith("enseignant")) continue;
+            String userPrefix = u.getEmail().split("\\.")[0].toLowerCase();
+            if (!filierePrefixes.contains(userPrefix)) continue;
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", u.getId());
+            map.put("nom", u.getNom());
+            map.put("prenom", u.getPrenom());
+            map.put("email", u.getEmail());
+            result.add(map);
+        }
+        return ResponseEntity.ok(result);
+    }
 }

@@ -69,7 +69,7 @@ public class DataLoader implements CommandLineRunner {
             {"rm.2ia@ensias.ma", "KHALIL", "Mohamed"},
             {"rm.bia@ensias.ma", "AMRANI", "Leila"},
             {"rm.gd@ensias.ma", "CHRAIBI", "Hajar"},
-            {"rm.gl@ensias.ma", "BENNANI", "Omar"},
+            {"responsable@ensias.ma", "BENNANI", "Omar"},
             {"rm.idf@ensias.ma", "SQALLI", "Karim"},
             {"rm.2scl@ensias.ma", "MOUSSAOUI", "Sara"},
             {"rm.cscc@ensias.ma", "IDRISSI", "Tarik"},
@@ -105,7 +105,6 @@ public class DataLoader implements CommandLineRunner {
 
         // Scolarite + comptes demo
         userRepository.save(User.builder().email("scolarite@ensias.ma").password(pwd).nom("ADMIN").prenom("Scolarite").role(Role.SCO).isActive(true).build());
-        userRepository.save(User.builder().email("responsable@ensias.ma").password(pwd).nom("KHALIL").prenom("Mohamed").role(Role.RM).isActive(true).build());
         userRepository.save(User.builder().email("chef@ensias.ma").password(pwd).nom("ABOUTAJDINE").prenom("Driss").role(Role.CF).isActive(true).build());
 
         // =============================================

@@ -121,7 +121,7 @@ export default function SaisieNotesPage() {
         elementModuleId: selectedElement,
         valeur,
       });
-      setSavedIds(prev => new Set([...prev, etudiantId]));
+      setSavedIds(prev => { const s = new Set(Array.from(prev)); s.add(etudiantId); return s; });
       setSuccess(`Note enregistree pour l'etudiant`);
       setTimeout(() => setSuccess(""), 3000);
     } catch (err: any) {
@@ -139,7 +139,7 @@ export default function SaisieNotesPage() {
     }
     if (isNaN(numValue) || numValue < 0 || numValue > 20) return;
     setNotes(prev => prev.map(n => n.etudiantId === etudiantId ? { ...n, valeur: numValue } : n));
-    setSavedIds(prev => { const s = new Set(prev); s.delete(etudiantId); return s; });
+    setSavedIds(prev => { const s = new Set(Array.from(prev)); s.delete(etudiantId); return s; });
   };
 
   const currentElement = elements.find(e => e.id === selectedElement);

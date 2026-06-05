@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { api } from "@/lib/api";
 import {
   BookOpen,
   Save,
@@ -9,208 +10,335 @@ import {
   AlertTriangle,
   CheckCircle,
   Search,
+  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface StudentNote {
+interface Element {
+  id: number;
+  code: string;
+  intitule: string;
+  moduleIntitule: string;
+  moduleCode: string;
+  semestre: string;
+  filiereCode: string;
+  filiereIntitule: string;
+  coefficient: number;
+}
+
+interface Etudiant {
   id: number;
   nom: string;
   prenom: string;
-  note: number | null;
+  email: string;
+}
+
+interface NoteData {
+  id?: number;
+  etudiantId: number;
+  etudiantNom: string;
+  etudiantPrenom: string;
+  valeur: number | null;
   isBlockedByArticle39: boolean;
-  saved: boolean;
+  isRachete: boolean;
+  motifRachat: string | null;
 }
 
 export default function SaisieNotesPage() {
-  const [selectedElement, setSelectedElement] = useState("Java Avance");
-  const [students, setStudents] = useState<StudentNote[]>([
-    { id: 1, nom: "ALAOUI", prenom: "Youssef", note: 15.5, isBlockedByArticle39: false, saved: true },
-    { id: 2, nom: "BENNANI", prenom: "Khadija", note: 12.0, isBlockedByArticle39: false, saved: true },
-    { id: 3, nom: "CHRAIBI", prenom: "Omar", note: 0, isBlockedByArticle39: true, saved: true },
-    { id: 4, nom: "DOUKKALI", prenom: "Amina", note: null, isBlockedByArticle39: false, saved: false },
-    { id: 5, nom: "ELFASSI", prenom: "Hamza", note: 8.5, isBlockedByArticle39: false, saved: true },
-  ]);
-
+  const [elements, setElements] = useState<Element[]>([]);
+  const [etudiants, setEtudiants] = useState<Etudiant[]>([]);
+  const [selectedElement, setSelectedElement] = useState<number | null>(null);
+  const [notes, setNotes] = useState<NoteData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const filteredStudents = students.filter(
-    (s) =>
-      s.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.prenom.toLowerCase().includes(searchTerm.toLowerCase())
+  // Charger les elements de l'enseignant
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [elemRes, etuRes] = await Promise.all([
+          api.get("/enseignant/mes-elements"),
+          api.get("/enseignant/etudiants"),
+        ]);
+        setElements(elemRes.data);
+        setEtudiants(etuRes.data);
+        if (elemRes.data.length > 0) {
+          setSelectedElement(elemRes.data[0].id);
+        }
+      } catch (err) {
+        setError("Erreur chargement des donnees");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Charger les notes quand un element est selectionne
+  useEffect(() => {
+    if (!selectedElement) return;
+    const fetchNotes = async () => {
+      try {
+        const res = await api.get(`/enseignant/notes/element/${selectedElement}`);
+        const existingNotes: NoteData[] = res.data;
+
+        // Fusionner avec la liste des etudiants pour afficher ceux sans note
+        const notesMap = new Map(existingNotes.map(n => [n.etudiantId, n]));
+        const allNotes: NoteData[] = etudiants.map(etu => {
+          const existing = notesMap.get(etu.id);
+          if (existing) return existing;
+          return {
+            etudiantId: etu.id,
+            etudiantNom: etu.nom,
+            etudiantPrenom: etu.prenom,
+            valeur: null,
+            isBlockedByArticle39: false,
+            isRachete: false,
+            motifRachat: null,
+          };
+        });
+        setNotes(allNotes);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchNotes();
+  }, [selectedElement, etudiants]);
+
+  const handleSaveNote = async (etudiantId: number, valeur: number) => {
+    if (!selectedElement) return;
+    setSaving(etudiantId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.post("/enseignant/notes", {
+        etudiantId,
+        elementModuleId: selectedElement,
+        valeur,
+      });
+      setSavedIds(prev => new Set([...prev, etudiantId]));
+      setSuccess(`Note enregistree pour l'etudiant`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erreur lors de la sauvegarde");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleNoteChange = (etudiantId: number, value: string) => {
+    const numValue = parseFloat(value);
+    if (value === "") {
+      setNotes(prev => prev.map(n => n.etudiantId === etudiantId ? { ...n, valeur: null } : n));
+      return;
+    }
+    if (isNaN(numValue) || numValue < 0 || numValue > 20) return;
+    setNotes(prev => prev.map(n => n.etudiantId === etudiantId ? { ...n, valeur: numValue } : n));
+    setSavedIds(prev => { const s = new Set(prev); s.delete(etudiantId); return s; });
+  };
+
+  const currentElement = elements.find(e => e.id === selectedElement);
+
+  const filteredNotes = notes.filter(n =>
+    n.etudiantNom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    n.etudiantPrenom.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleNoteChange = (id: number, value: string) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue) || numValue < 0 || numValue > 20) return;
-
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, note: numValue, saved: false } : s
-      )
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-pulse text-slate-400">Chargement...</div>
+        </div>
+      </DashboardLayout>
     );
-  };
+  }
 
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-slate-900 text-2xl font-bold">Saisie des Notes</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Element : {selectedElement} | Bareme : /20
+            {currentElement ? `${currentElement.filiereCode} | ${currentElement.moduleIntitule} | ${currentElement.semestre}` : "Selectionnez un element"}
           </p>
         </div>
-        <button className="btn-primary">
-          <Save size={16} strokeWidth={1.5} />
-          Enregistrer tout
-        </button>
       </div>
 
-      {/* Element selector */}
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 flex items-center gap-2">
+          <AlertTriangle size={14} className="text-red-500" strokeWidth={2} />
+          <span className="text-red-600 text-sm">{error}</span>
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center gap-2">
+          <CheckCircle size={14} className="text-emerald-500" strokeWidth={2} />
+          <span className="text-emerald-600 text-sm">{success}</span>
+        </div>
+      )}
+
+      {/* Filtres */}
       <div className="card mb-6">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
             <label className="text-slate-600 text-xs font-medium mb-1 block">
+              <Filter size={12} className="inline mr-1" strokeWidth={1.5} />
               Element de Module
             </label>
             <select
-              value={selectedElement}
-              onChange={(e) => setSelectedElement(e.target.value)}
-              className="input-field"
+              value={selectedElement || ""}
+              onChange={(e) => setSelectedElement(Number(e.target.value))}
+              className="input-field text-sm"
             >
-              <option>Java Avance</option>
-              <option>Design Patterns</option>
+              <option value="">-- Selectionner --</option>
+              {elements.map(el => (
+                <option key={el.id} value={el.id}>
+                  [{el.filiereCode}] {el.intitule} ({el.semestre})
+                </option>
+              ))}
             </select>
           </div>
-          <div className="flex-1">
+          <div>
             <label className="text-slate-600 text-xs font-medium mb-1 block">
+              Filiere / Semestre
+            </label>
+            <input
+              type="text"
+              className="input-field text-sm"
+              value={currentElement ? `${currentElement.filiereIntitule} - ${currentElement.semestre}` : ""}
+              readOnly
+            />
+          </div>
+          <div>
+            <label className="text-slate-600 text-xs font-medium mb-1 block">
+              <Search size={12} className="inline mr-1" strokeWidth={1.5} />
               Rechercher un etudiant
             </label>
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                strokeWidth={1.5}
-              />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field pl-10"
-                placeholder="Nom ou prenom..."
-              />
-            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field text-sm"
+              placeholder="Nom ou prenom..."
+            />
           </div>
         </div>
       </div>
 
-      {/* Article 39 Warning Banner */}
-      <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-3">
-        <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" strokeWidth={1.5} />
+      {/* Article 39 Banner */}
+      <div className="mb-4 p-3 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-3">
+        <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" strokeWidth={1.5} />
         <div>
-          <p className="text-red-700 text-sm font-medium">Regle Article 39</p>
-          <p className="text-red-500 text-xs mt-0.5">
-            Les etudiants avec absence injustifiee ont leur note forcee a 0/20 et
-            verrouillee. Aucune modification ni rachat n'est possible.
+          <p className="text-red-700 text-xs font-medium">Regle Article 39</p>
+          <p className="text-red-500 text-[11px] mt-0.5">
+            Les etudiants avec absence injustifiee a l'examen ont leur note forcee a 0/20 et verrouillee automatiquement.
           </p>
         </div>
       </div>
 
-      {/* Notes Table */}
-      <div className="card p-0 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-100">
-              <th className="text-left text-slate-500 text-xs font-medium px-6 py-3.5">
-                Etudiant
-              </th>
-              <th className="text-center text-slate-500 text-xs font-medium px-6 py-3.5">
-                Note /20
-              </th>
-              <th className="text-center text-slate-500 text-xs font-medium px-6 py-3.5">
-                Statut
-              </th>
-              <th className="text-right text-slate-500 text-xs font-medium px-6 py-3.5">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStudents.map((student) => (
-              <tr
-                key={student.id}
-                className={cn(
-                  "border-b border-slate-100/80 transition-colors",
-                  student.isBlockedByArticle39
-                    ? "row-blocked-article39"
-                    : "hover:bg-slate-50/50"
-                )}
-              >
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    {student.isBlockedByArticle39 && (
-                      <div className="w-6 h-6 rounded-md bg-red-50 flex items-center justify-center">
-                        <Lock size={12} className="text-red-400" strokeWidth={2} />
-                      </div>
-                    )}
-                    <div>
-                      <p className={cn(
-                        "text-sm font-medium",
-                        student.isBlockedByArticle39 ? "text-slate-400" : "text-slate-800"
-                      )}>
-                        {student.nom} {student.prenom}
-                      </p>
-                      {student.isBlockedByArticle39 && (
-                        <p className="text-[10px] text-red-400 font-medium mt-0.5">
-                          Article 39 - Absence injustifiee
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {student.isBlockedByArticle39 ? (
-                    <span className="text-red-400 font-bold text-lg">0</span>
-                  ) : (
-                    <input
-                      type="number"
-                      min="0"
-                      max="20"
-                      step="0.25"
-                      value={student.note ?? ""}
-                      onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                      className="w-20 px-3 py-1.5 text-center rounded-lg border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 outline-none transition-all text-sm font-medium"
-                      placeholder="--"
-                    />
-                  )}
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {student.isBlockedByArticle39 ? (
-                    <span className="badge-danger">
-                      <Lock size={10} className="mr-1" strokeWidth={2} />
-                      Verrouille
-                    </span>
-                  ) : student.saved ? (
-                    <span className="badge-success">
-                      <CheckCircle size={10} className="mr-1" strokeWidth={2} />
-                      Enregistre
-                    </span>
-                  ) : (
-                    <span className="badge-warning">En attente</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  {!student.isBlockedByArticle39 && (
-                    <button className="text-orange-600 text-xs font-medium hover:text-orange-700 transition-colors">
-                      Sauvegarder
-                    </button>
-                  )}
-                </td>
+      {/* Tableau des notes */}
+      {selectedElement && (
+        <div className="card p-0 overflow-hidden">
+          <div className="px-6 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+            <span className="text-slate-600 text-xs font-medium">
+              {filteredNotes.length} etudiant(s) affiche(s)
+            </span>
+            <span className="text-slate-400 text-[10px]">
+              Bareme: /20 | Type: Exam
+            </span>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="text-left text-slate-500 text-xs font-medium px-6 py-3">#</th>
+                <th className="text-left text-slate-500 text-xs font-medium px-6 py-3">Etudiant</th>
+                <th className="text-center text-slate-500 text-xs font-medium px-6 py-3">Note /20</th>
+                <th className="text-center text-slate-500 text-xs font-medium px-6 py-3">Statut</th>
+                <th className="text-right text-slate-500 text-xs font-medium px-6 py-3">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filteredNotes.map((note, idx) => (
+                <tr
+                  key={note.etudiantId}
+                  className={cn(
+                    "border-b border-slate-100/80 transition-colors",
+                    note.isBlockedByArticle39 ? "row-blocked-article39" : "hover:bg-slate-50/50"
+                  )}
+                >
+                  <td className="px-6 py-3 text-slate-400 text-xs">{idx + 1}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-2">
+                      {note.isBlockedByArticle39 && (
+                        <div className="w-5 h-5 rounded bg-red-50 flex items-center justify-center">
+                          <Lock size={10} className="text-red-400" strokeWidth={2} />
+                        </div>
+                      )}
+                      <div>
+                        <p className={cn("text-sm font-medium", note.isBlockedByArticle39 ? "text-slate-400" : "text-slate-800")}>
+                          {note.etudiantNom} {note.etudiantPrenom}
+                        </p>
+                        {note.isBlockedByArticle39 && (
+                          <p className="text-[9px] text-red-400 font-medium">Art. 39 - Absence injustifiee</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3 text-center">
+                    {note.isBlockedByArticle39 ? (
+                      <span className="text-red-400 font-bold">0.00</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        max="20"
+                        step="0.25"
+                        value={note.valeur ?? ""}
+                        onChange={(e) => handleNoteChange(note.etudiantId, e.target.value)}
+                        className="w-20 px-2 py-1.5 text-center rounded-lg border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 outline-none text-sm font-medium"
+                        placeholder="--"
+                      />
+                    )}
+                  </td>
+                  <td className="px-6 py-3 text-center">
+                    {note.isBlockedByArticle39 ? (
+                      <span className="badge-danger text-[10px]"><Lock size={9} className="mr-0.5" />Verrouille</span>
+                    ) : savedIds.has(note.etudiantId) || (note.id && note.valeur !== null) ? (
+                      <span className="badge-success text-[10px]"><CheckCircle size={9} className="mr-0.5" />OK</span>
+                    ) : (
+                      <span className="badge-warning text-[10px]">En attente</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 text-right">
+                    {!note.isBlockedByArticle39 && note.valeur !== null && (
+                      <button
+                        onClick={() => handleSaveNote(note.etudiantId, note.valeur!)}
+                        disabled={saving === note.etudiantId}
+                        className="text-orange-600 text-xs font-medium hover:text-orange-700 transition-colors disabled:opacity-50"
+                      >
+                        {saving === note.etudiantId ? "..." : "Sauvegarder"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredNotes.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              Aucun etudiant trouve
+            </div>
+          )}
+        </div>
+      )}
     </DashboardLayout>
   );
 }

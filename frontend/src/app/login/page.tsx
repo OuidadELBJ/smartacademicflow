@@ -79,7 +79,14 @@ export default function LoginPage() {
               <span className="ensias-login__brand">SmartAcademicFlow</span>
             </div>
             <div className="ensias-login__logo-um5">
-              <span className="ensias-login__um5-text">UM5 - ENSIAS</span>
+              {/* Logo UM5 */}
+              <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="20" y="15" width="55" height="55" rx="4" fill="none" stroke="#1a3a5c" strokeWidth="3.5" transform="rotate(-2, 50, 42)"/>
+                <circle cx="50" cy="28" r="12" fill="none" stroke="#1a3a5c" strokeWidth="3.5"/>
+                <path d="M32 70 L50 48 L68 70" fill="none" stroke="#1a3a5c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                <polygon points="50,24 52,27 49,27" fill="none" stroke="#1a3a5c" strokeWidth="1.5"/>
+                <text x="50" y="92" textAnchor="middle" fontSize="9" fill="#1a3a5c" fontWeight="600" fontFamily="sans-serif">UM5</text>
+              </svg>
             </div>
           </div>
 

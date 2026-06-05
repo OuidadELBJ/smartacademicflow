@@ -105,11 +105,11 @@ export default function SaisieNotesPage() {
       </div>
 
       {/* Article 39 Warning Banner */}
-      <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
-        <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" strokeWidth={1.5} />
+      <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-3">
+        <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" strokeWidth={1.5} />
         <div>
-          <p className="text-amber-800 text-sm font-medium">Regle Article 39</p>
-          <p className="text-amber-600 text-xs mt-0.5">
+          <p className="text-red-700 text-sm font-medium">Regle Article 39</p>
+          <p className="text-red-500 text-xs mt-0.5">
             Les etudiants avec absence injustifiee ont leur note forcee a 0/20 et
             verrouillee. Aucune modification ni rachat n'est possible.
           </p>
@@ -179,7 +179,7 @@ export default function SaisieNotesPage() {
                       step="0.25"
                       value={student.note ?? ""}
                       onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                      className="w-20 px-3 py-1.5 text-center rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-sm font-medium"
+                      className="w-20 px-3 py-1.5 text-center rounded-lg border border-slate-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 outline-none transition-all text-sm font-medium"
                       placeholder="--"
                     />
                   )}
@@ -201,7 +201,7 @@ export default function SaisieNotesPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   {!student.isBlockedByArticle39 && (
-                    <button className="text-blue-600 text-xs font-medium hover:text-blue-700 transition-colors">
+                    <button className="text-orange-600 text-xs font-medium hover:text-orange-700 transition-colors">
                       Sauvegarder
                     </button>
                   )}

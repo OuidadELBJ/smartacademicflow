@@ -15,7 +15,6 @@ import {
   Upload,
   Download,
   CheckCircle,
-  GraduationCap,
   AlertTriangle,
   MessageSquare,
   LogOut,
@@ -122,18 +121,20 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-blue-900 flex flex-col z-50">
+    <aside className="fixed left-0 top-0 h-full w-64 flex flex-col z-50" style={{ background: "linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)" }}>
       {/* Header */}
-      <div className="px-6 py-6 border-b border-blue-800/50">
+      <div className="px-6 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-            <GraduationCap size={20} className="text-white" strokeWidth={1.5} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #ee2927, #ff8848)" }}>
+            <svg width="18" height="18" viewBox="0 0 52.917 52.917" xmlns="http://www.w3.org/2000/svg">
+              <path d="M26.458 5L5 47.917h42.917L26.458 5z" fill="white" opacity="0.9"/>
+            </svg>
           </div>
           <div>
             <h1 className="text-white font-bold text-sm leading-tight">
               SmartAcademic
             </h1>
-            <p className="text-blue-300 text-[11px]">Flow Platform</p>
+            <p className="text-white/40 text-[11px]">Flow Platform</p>
           </div>
         </div>
       </div>
@@ -149,9 +150,10 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-blue-600/40 text-white shadow-sm"
-                  : "text-blue-200 hover:bg-blue-800/50 hover:text-white"
+                  ? "text-white shadow-sm"
+                  : "text-white/50 hover:text-white hover:bg-white/5"
               )}
+              style={isActive ? { background: "linear-gradient(135deg, rgba(238,41,39,0.8), rgba(255,136,72,0.8))" } : undefined}
             >
               {item.icon}
               <span>{item.label}</span>
@@ -161,23 +163,23 @@ export function Sidebar() {
       </nav>
 
       {/* User section */}
-      <div className="px-4 py-4 border-t border-blue-800/50">
+      <div className="px-4 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-700 flex items-center justify-center">
-            <Shield size={16} className="text-blue-200" strokeWidth={1.5} />
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+            <Shield size={16} className="text-white/60" strokeWidth={1.5} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-xs font-medium truncate">
               {user.prenom} {user.nom}
             </p>
-            <p className="text-blue-300 text-[10px]">
+            <p className="text-white/40 text-[10px]">
               {roleLabels[user.role]}
             </p>
           </div>
         </div>
         <button
           onClick={logout}
-          className="flex items-center gap-2 text-blue-300 hover:text-white text-xs transition-colors w-full px-2 py-1.5 rounded-lg hover:bg-blue-800/50"
+          className="flex items-center gap-2 text-white/40 hover:text-white text-xs transition-colors w-full px-2 py-1.5 rounded-lg hover:bg-white/5"
         >
           <LogOut size={14} strokeWidth={1.5} />
           <span>Deconnexion</span>

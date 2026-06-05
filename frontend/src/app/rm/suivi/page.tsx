@@ -21,8 +21,8 @@ export default function SuiviPage() {
   return (
     <DashboardLayout>
       <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-          <ClipboardList size={20} className="text-teal-600" strokeWidth={1.5} />
+        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+          <ClipboardList size={20} className="text-orange-600" strokeWidth={1.5} />
         </div>
         <div>
           <h1 className="text-slate-900 text-xl font-bold">Suivi de l'Avancement</h1>
@@ -30,10 +30,9 @@ export default function SuiviPage() {
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="card text-center">
-          <TrendingUp size={20} className="text-blue-600 mx-auto mb-2" strokeWidth={1.5} />
+          <TrendingUp size={20} className="text-orange-600 mx-auto mb-2" strokeWidth={1.5} />
           <p className="text-slate-900 text-2xl font-bold">64%</p>
           <p className="text-slate-500 text-xs">Progression moyenne</p>
         </div>
@@ -49,7 +48,6 @@ export default function SuiviPage() {
         </div>
       </div>
 
-      {/* Elements detail */}
       <div className="space-y-3">
         {elements.map((el) => (
           <div key={el.id} className="card-hover">
@@ -57,12 +55,12 @@ export default function SuiviPage() {
               <div className={cn(
                 "w-10 h-10 rounded-xl flex items-center justify-center",
                 el.progression === 100 ? "bg-emerald-50" :
-                el.progression < 50 ? "bg-amber-50" : "bg-blue-50"
+                el.progression < 50 ? "bg-amber-50" : "bg-orange-50"
               )}>
                 {el.progression === 100 ? (
                   <CheckCircle size={18} className="text-emerald-600" strokeWidth={1.5} />
                 ) : (
-                  <BarChart3 size={18} className={el.progression < 50 ? "text-amber-600" : "text-blue-600"} strokeWidth={1.5} />
+                  <BarChart3 size={18} className={el.progression < 50 ? "text-amber-600" : "text-orange-600"} strokeWidth={1.5} />
                 )}
               </div>
 
@@ -75,23 +73,21 @@ export default function SuiviPage() {
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-500",
-                      el.progression === 100 ? "bg-emerald-500" :
-                      el.progression < 50 ? "bg-amber-400" : "bg-blue-500"
-                    )}
-                    style={{ width: `${el.progression}%` }}
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${el.progression}%`,
+                      background: el.progression === 100 ? "#10b981" :
+                        el.progression < 50 ? "#f59e0b" : "linear-gradient(135deg, #ee2927, #ff8848)",
+                    }}
                   />
                 </div>
-                <p className="text-slate-400 text-[11px] mt-1">
-                  Enseignant: {el.enseignant}
-                </p>
+                <p className="text-slate-400 text-[11px] mt-1">Enseignant: {el.enseignant}</p>
               </div>
 
               <span className={cn(
                 "text-lg font-bold",
                 el.progression === 100 ? "text-emerald-600" :
-                el.progression < 50 ? "text-amber-600" : "text-blue-600"
+                el.progression < 50 ? "text-amber-600" : "text-orange-600"
               )}>
                 {el.progression}%
               </span>

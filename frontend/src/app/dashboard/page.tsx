@@ -20,9 +20,9 @@ export default function DashboardPage() {
     {
       label: "Modules en cours",
       value: "4",
-      icon: <BookOpen size={20} className="text-blue-600" strokeWidth={1.5} />,
+      icon: <BookOpen size={20} className="text-orange-600" strokeWidth={1.5} />,
       change: "+2 ce semestre",
-      bgColor: "bg-blue-50",
+      bgColor: "bg-orange-50",
     },
     {
       label: "Elements assignes",
@@ -34,9 +34,9 @@ export default function DashboardPage() {
     {
       label: "Progression",
       value: "67%",
-      icon: <TrendingUp size={20} className="text-violet-600" strokeWidth={1.5} />,
+      icon: <TrendingUp size={20} className="text-red-500" strokeWidth={1.5} />,
       change: "+12% cette semaine",
-      bgColor: "bg-violet-50",
+      bgColor: "bg-red-50",
     },
     {
       label: "En retard",
@@ -64,7 +64,7 @@ export default function DashboardPage() {
       action: "Rachat effectue",
       detail: "Java Avance - ETUDIANT_5 (8.5 -> 10)",
       time: "Il y a 1h",
-      icon: <Activity size={14} className="text-blue-500" strokeWidth={1.5} />,
+      icon: <Activity size={14} className="text-orange-500" strokeWidth={1.5} />,
     },
   ];
 
@@ -102,7 +102,7 @@ export default function DashboardPage() {
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Progression Chart Placeholder */}
+        {/* Progression Chart */}
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-slate-900 text-base font-bold">
@@ -111,7 +111,6 @@ export default function DashboardPage() {
             <BarChart3 size={18} className="text-slate-400" strokeWidth={1.5} />
           </div>
 
-          {/* Progress bars */}
           <div className="space-y-4">
             {[
               { name: "Java Avance", progress: 80, teacher: "A. BENALI" },
@@ -129,14 +128,15 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        item.progress === 100
-                          ? "bg-emerald-500"
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${item.progress}%`,
+                        background: item.progress === 100
+                          ? "#10b981"
                           : item.progress < 50
-                          ? "bg-amber-400"
-                          : "bg-blue-500"
-                      }`}
-                      style={{ width: `${item.progress}%` }}
+                          ? "#f59e0b"
+                          : "linear-gradient(135deg, #ee2927, #ff8848)",
+                      }}
                     />
                   </div>
                   <p className="text-slate-400 text-[11px] mt-0.5">{item.teacher}</p>

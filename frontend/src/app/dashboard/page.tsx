@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useAuthStore } from "@/lib/store";
+import { api } from "@/lib/api";
 import {
   BookOpen,
   Users,
@@ -10,67 +12,55 @@ import {
   CheckCircle,
   AlertTriangle,
   BarChart3,
-  Activity,
 } from "lucide-react";
+
+interface ElementData {
+  id: number; intitule: string; filiereCode: string; semestre: string;
+  moduleIntitule: string; hasTd: boolean; hasTp: boolean; hasProjet: boolean;
+}
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const [elements, setElements] = useState<ElementData[]>([]);
+  const [stats, setStats] = useState({ totalElements: 0, notesCount: 0, progression: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
-    {
-      label: "Modules en cours",
-      value: "4",
-      icon: <BookOpen size={20} className="text-orange-600" strokeWidth={1.5} />,
-      change: "+2 ce semestre",
-      bgColor: "bg-orange-50",
-    },
-    {
-      label: "Elements assignes",
-      value: "8",
-      icon: <Users size={20} className="text-emerald-600" strokeWidth={1.5} />,
-      change: "100% actifs",
-      bgColor: "bg-emerald-50",
-    },
-    {
-      label: "Progression",
-      value: "67%",
-      icon: <TrendingUp size={20} className="text-red-500" strokeWidth={1.5} />,
-      change: "+12% cette semaine",
-      bgColor: "bg-red-50",
-    },
-    {
-      label: "En retard",
-      value: "2",
-      icon: <Clock size={20} className="text-amber-600" strokeWidth={1.5} />,
-      change: "Relance envoyee",
-      bgColor: "bg-amber-50",
-    },
-  ];
+  useEffect(() => {
+    if (user?.role !== "ENS") { setLoading(false); return; }
+    const fetchData = async () => {
+      try {
+        const res = await api.get("/enseignant/mes-elements");
+        const elems: ElementData[] = res.data;
+        setElements(elems);
 
-  const recentActivities = [
-    {
-      action: "Note saisie",
-      detail: "Java Avance - ETUDIANT_3",
-      time: "Il y a 5 min",
-      icon: <CheckCircle size={14} className="text-emerald-500" strokeWidth={1.5} />,
-    },
-    {
-      action: "Absence declaree",
-      detail: "Design Patterns - ETUDIANT_1",
-      time: "Il y a 20 min",
-      icon: <AlertTriangle size={14} className="text-amber-500" strokeWidth={1.5} />,
-    },
-    {
-      action: "Rachat effectue",
-      detail: "Java Avance - ETUDIANT_5 (8.5 -> 10)",
-      time: "Il y a 1h",
-      icon: <Activity size={14} className="text-orange-500" strokeWidth={1.5} />,
-    },
-  ];
+        // Calculer stats reelles
+        let totalNotes = 0;
+        let totalExpected = 0;
+        for (const el of elems) {
+          try {
+            const notesRes = await api.get(`/enseignant/notes/element/${el.id}?type=EXAM`);
+            totalNotes += notesRes.data.length;
+          } catch {}
+          // Estimer le nombre attendu (simplifie)
+          totalExpected += 30; // ~30 etudiants par filiere en moyenne
+        }
+        const prog = totalExpected > 0 ? Math.round((totalNotes / totalExpected) * 100) : 0;
+        setStats({ totalElements: elems.length, notesCount: totalNotes, progression: Math.min(prog, 100) });
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
+    };
+    fetchData();
+  }, [user]);
+
+  if (loading) {
+    return <DashboardLayout><div className="flex items-center justify-center h-64"><div className="animate-pulse text-slate-400">Chargement...</div></div></DashboardLayout>;
+  }
+
+  // Get unique modules
+  const modules = [...new Set(elements.map(e => e.moduleIntitule))];
 
   return (
     <DashboardLayout>
-      {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-slate-900 text-2xl font-bold">
           Bonjour, {user?.prenom || "Utilisateur"}
@@ -80,97 +70,92 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="card-hover">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-slate-500 text-xs font-medium">{stat.label}</p>
-                <p className="text-slate-900 text-2xl font-bold mt-1">
-                  {stat.value}
-                </p>
-                <p className="text-slate-400 text-[11px] mt-1">{stat.change}</p>
-              </div>
-              <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                {stat.icon}
-              </div>
+        <div className="card-hover">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-slate-500 text-xs font-medium">Modules en cours</p>
+              <p className="text-slate-900 text-2xl font-bold mt-1">{modules.length}</p>
+              <p className="text-slate-400 text-[11px] mt-1">Ce semestre</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              <BookOpen size={20} className="text-orange-600" strokeWidth={1.5} />
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Progression Chart */}
-        <div className="lg:col-span-2 card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-slate-900 text-base font-bold">
-              Progression de la saisie
-            </h2>
-            <BarChart3 size={18} className="text-slate-400" strokeWidth={1.5} />
-          </div>
-
-          <div className="space-y-4">
-            {[
-              { name: "Java Avance", progress: 80, teacher: "A. BENALI" },
-              { name: "Design Patterns", progress: 45, teacher: "F. ELHASSOUNI" },
-              { name: "Bases de Donnees", progress: 100, teacher: "K. MOULINE" },
-              { name: "Reseaux", progress: 20, teacher: "H. ZIDANI" },
-            ].map((item) => (
-              <div key={item.name} className="flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-slate-700 text-sm font-medium truncate">
-                      {item.name}
-                    </p>
-                    <span className="text-slate-500 text-xs">{item.progress}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${item.progress}%`,
-                        background: item.progress === 100
-                          ? "#10b981"
-                          : item.progress < 50
-                          ? "#f59e0b"
-                          : "linear-gradient(135deg, #ee2927, #ff8848)",
-                      }}
-                    />
-                  </div>
-                  <p className="text-slate-400 text-[11px] mt-0.5">{item.teacher}</p>
-                </div>
-              </div>
-            ))}
+        </div>
+        <div className="card-hover">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-slate-500 text-xs font-medium">Elements assignes</p>
+              <p className="text-slate-900 text-2xl font-bold mt-1">{stats.totalElements}</p>
+              <p className="text-slate-400 text-[11px] mt-1">Tous actifs</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Users size={20} className="text-emerald-600" strokeWidth={1.5} />
+            </div>
           </div>
         </div>
-
-        {/* Recent Activity */}
-        <div className="card">
-          <h2 className="text-slate-900 text-base font-bold mb-4">
-            Activite recente
-          </h2>
-          <div className="space-y-4">
-            {recentActivities.map((activity, idx) => (
-              <div key={idx} className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center mt-0.5">
-                  {activity.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-slate-700 text-sm font-medium">
-                    {activity.action}
-                  </p>
-                  <p className="text-slate-400 text-xs truncate">
-                    {activity.detail}
-                  </p>
-                  <p className="text-slate-300 text-[10px] mt-0.5">
-                    {activity.time}
-                  </p>
-                </div>
-              </div>
-            ))}
+        <div className="card-hover">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-slate-500 text-xs font-medium">Progression saisie</p>
+              <p className="text-slate-900 text-2xl font-bold mt-1">{stats.progression}%</p>
+              <p className="text-slate-400 text-[11px] mt-1">{stats.notesCount} notes saisies</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <TrendingUp size={20} className="text-red-500" strokeWidth={1.5} />
+            </div>
           </div>
+        </div>
+        <div className="card-hover">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-slate-500 text-xs font-medium">Statut</p>
+              <p className="text-slate-900 text-2xl font-bold mt-1">
+                {stats.progression >= 100 ? "Complet" : "En cours"}
+              </p>
+              <p className="text-slate-400 text-[11px] mt-1">
+                {stats.progression >= 100 ? "Toutes les notes saisies" : "Saisie en cours"}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              {stats.progression >= 100
+                ? <CheckCircle size={20} className="text-emerald-600" strokeWidth={1.5} />
+                : <Clock size={20} className="text-amber-600" strokeWidth={1.5} />
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mes elements */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-slate-900 text-base font-bold">Mes elements de module</h2>
+          <BarChart3 size={18} className="text-slate-400" strokeWidth={1.5} />
+        </div>
+        <div className="space-y-3">
+          {elements.map((el) => (
+            <div key={el.id} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+              <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
+                <BookOpen size={16} className="text-orange-600" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-800 text-sm font-medium">{el.intitule}</p>
+                <p className="text-slate-400 text-[11px]">{el.moduleIntitule} | {el.filiereCode} | {el.semestre}</p>
+              </div>
+              <div className="flex gap-1">
+                <span className="badge-info text-[9px]">Exam</span>
+                {el.hasTd && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">TD</span>}
+                {el.hasTp && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">TP</span>}
+                {el.hasProjet && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">Projet</span>}
+              </div>
+            </div>
+          ))}
+          {elements.length === 0 && (
+            <p className="text-slate-400 text-sm text-center py-6">Aucun element assigne</p>
+          )}
         </div>
       </div>
     </DashboardLayout>

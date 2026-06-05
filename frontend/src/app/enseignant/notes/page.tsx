@@ -62,16 +62,18 @@ export default function SaisieNotesPage() {
 
   // Load students filtered by filiere when element changes
   useEffect(() => {
-    if (!currentElement) return;
+    if (!selectedElement || elements.length === 0) return;
+    const el = elements.find(e => e.id === selectedElement);
+    if (!el) return;
     const fetchEtudiants = async () => {
       try {
-        const filiereCode = currentElement.filiereCode.toLowerCase();
+        const filiereCode = el.filiereCode.toLowerCase().replace("&", "");
         const res = await api.get(`/enseignant/etudiants?filiere=${filiereCode}`);
         setEtudiants(res.data);
       } catch (err) { console.error(err); }
     };
     fetchEtudiants();
-  }, [selectedElement, currentElement?.filiereCode]);
+  }, [selectedElement, elements]);
 
   // Load notes when element or tab changes
   useEffect(() => {

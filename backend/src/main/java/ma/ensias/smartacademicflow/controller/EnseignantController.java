@@ -68,14 +68,22 @@ public class EnseignantController {
         List<User> allUsers = userRepository.findByRole(Role.ENS);
         List<Map<String, Object>> result = new ArrayList<>();
 
+        // Mapping filiereCode -> email prefix
+        String emailPrefix = null;
+        if (filiere != null && !filiere.isEmpty()) {
+            String f = filiere.toLowerCase().replace("&", "");
+            // Normaliser: "bi&a" -> "bia", "gl" -> "gl", etc.
+            emailPrefix = f;
+        }
+
         for (User u : allUsers) {
             // Exclure les enseignants (leur email commence par "enseignant")
             if (u.getEmail().startsWith("enseignant")) continue;
 
-            // Filtrer par filiere si specifie (prefix email: gl.1@, 2ia.5@, etc.)
-            if (filiere != null && !filiere.isEmpty()) {
-                String emailPrefix = u.getEmail().split("\\.")[0].toLowerCase();
-                if (!emailPrefix.equalsIgnoreCase(filiere)) continue;
+            // Filtrer par filiere si specifie
+            if (emailPrefix != null) {
+                String userPrefix = u.getEmail().split("\\.")[0].toLowerCase();
+                if (!userPrefix.equals(emailPrefix)) continue;
             }
 
             Map<String, Object> map = new HashMap<>();

@@ -220,9 +220,9 @@ export default function AbsencesPage() {
             </button>
           </div>
           {formType === "INJUSTIFIEE" && (
-            <p className="mt-3 text-[11px] text-red-500 flex items-center gap-1">
+            <p className="mt-3 text-[11px] text-amber-600 flex items-center gap-1">
               <AlertTriangle size={11} strokeWidth={2} />
-              L'Article 39 sera applique automatiquement : note forcee a 0/20 et verrouillee
+              Une absence injustifiee impactera la note d'examen de cet etudiant
             </p>
           )}
         </div>

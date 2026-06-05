@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import ma.ensias.smartacademicflow.domain.entity.*;
 import ma.ensias.smartacademicflow.domain.entity.Module;
 import ma.ensias.smartacademicflow.domain.enums.Role;
+import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import ma.ensias.smartacademicflow.repository.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,7 @@ public class DataLoader implements CommandLineRunner {
     private final FiliereRepository filiereRepository;
     private final ModuleRepository moduleRepository;
     private final ElementModuleRepository elementModuleRepository;
+    private final NoteRepository noteRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -336,20 +338,23 @@ public class DataLoader implements CommandLineRunner {
 
     private void createModulesGL(Filiere f, User rm, List<User> ens) {
         Module m1 = moduleRepository.save(Module.builder().code("GL-S1-M1").intitule("Programmation Orientee Objet").semestre("S1").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).module(m1).enseignant(ens.get(0)).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E2").intitule("Design Patterns").coefficient(1.5).module(m1).enseignant(ens.get(1)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m1).enseignant(ens.get(0)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E2").intitule("Design Patterns").coefficient(1.5).hasTd(true).hasTp(false).hasProjet(true).module(m1).enseignant(ens.get(1)).build());
         Module m2 = moduleRepository.save(Module.builder().code("GL-S1-M2").intitule("Structures de Donnees & Algorithmes").semestre("S1").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E1").intitule("Algorithmes Avances").coefficient(2.0).module(m2).enseignant(ens.get(2)).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E2").intitule("Complexite & Optimisation").coefficient(1.5).module(m2).enseignant(ens.get(3)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E1").intitule("Algorithmes Avances").coefficient(2.0).hasTd(true).hasTp(false).hasProjet(false).module(m2).enseignant(ens.get(2)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E2").intitule("Complexite & Optimisation").coefficient(1.5).hasTd(true).hasTp(false).hasProjet(false).module(m2).enseignant(ens.get(3)).build());
         Module m3 = moduleRepository.save(Module.builder().code("GL-S2-M1").intitule("Developpement Web Full-Stack").semestre("S2").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S2-M1-E1").intitule("Spring Boot & Microservices").coefficient(2.0).module(m3).enseignant(ens.get(0)).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S2-M1-E2").intitule("React / Angular").coefficient(1.5).module(m3).enseignant(ens.get(4)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S2-M1-E1").intitule("Spring Boot & Microservices").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(true).module(m3).enseignant(ens.get(0)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S2-M1-E2").intitule("React / Angular").coefficient(1.5).hasTd(false).hasTp(true).hasProjet(true).module(m3).enseignant(ens.get(4)).build());
         Module m4 = moduleRepository.save(Module.builder().code("GL-S3-M1").intitule("Architecture Logicielle").semestre("S3").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S3-M1-E1").intitule("Clean Architecture").coefficient(2.0).module(m4).enseignant(ens.get(7)).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S3-M1-E2").intitule("DevOps & CI/CD").coefficient(1.5).module(m4).enseignant(ens.get(8)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S3-M1-E1").intitule("Clean Architecture").coefficient(2.0).hasTd(true).hasTp(false).hasProjet(true).module(m4).enseignant(ens.get(7)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S3-M1-E2").intitule("DevOps & CI/CD").coefficient(1.5).hasTd(false).hasTp(true).hasProjet(true).module(m4).enseignant(ens.get(8)).build());
         Module m5 = moduleRepository.save(Module.builder().code("GL-S4-M1").intitule("Genie Logiciel & Qualite").semestre("S4").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E1").intitule("Tests & TDD").coefficient(2.0).module(m5).enseignant(ens.get(9)).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E2").intitule("Methodes Agiles").coefficient(1.0).module(m5).enseignant(ens.get(10)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E1").intitule("Tests & TDD").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m5).enseignant(ens.get(9)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S4-M1-E2").intitule("Methodes Agiles").coefficient(1.0).hasTd(false).hasTp(false).hasProjet(true).module(m5).enseignant(ens.get(10)).build());
+
+        // Pre-remplir notes EXAM pour les ~70 premiers etudiants GL (laisser les derniers pour demo)
+        prefillNotesForFiliere("gl", m1.getId(), ens.get(0).getId());
     }
 
     private void createModules2IA(Filiere f, User rm, List<User> ens) {
@@ -429,10 +434,63 @@ public class DataLoader implements CommandLineRunner {
 
     private void createModulesSSE(Filiere f, User rm, List<User> ens) {
         Module m1 = moduleRepository.save(Module.builder().code("SSE-S1-M1").intitule("Systemes Embarques Intelligents").semestre("S1").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("SSE-S1-M1-E1").intitule("FPGA & VHDL").coefficient(2.0).module(m1).enseignant(ens.get(0)).build());
-        elementModuleRepository.save(ElementModule.builder().code("SSE-S1-M1-E2").intitule("Robotique & Automatique").coefficient(1.5).module(m1).enseignant(ens.get(1)).build());
+        elementModuleRepository.save(ElementModule.builder().code("SSE-S1-M1-E1").intitule("FPGA & VHDL").coefficient(2.0).hasTd(false).hasTp(true).hasProjet(true).module(m1).enseignant(ens.get(0)).build());
+        elementModuleRepository.save(ElementModule.builder().code("SSE-S1-M1-E2").intitule("Robotique & Automatique").coefficient(1.5).hasTd(true).hasTp(true).hasProjet(false).module(m1).enseignant(ens.get(1)).build());
         Module m2 = moduleRepository.save(Module.builder().code("SSE-S2-M1").intitule("IoT & Edge Computing").semestre("S2").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("SSE-S2-M1-E1").intitule("Protocoles IoT (MQTT, CoAP)").coefficient(2.0).module(m2).enseignant(ens.get(2)).build());
-        elementModuleRepository.save(ElementModule.builder().code("SSE-S2-M1-E2").intitule("Edge AI & TinyML").coefficient(1.5).module(m2).enseignant(ens.get(3)).build());
+        elementModuleRepository.save(ElementModule.builder().code("SSE-S2-M1-E1").intitule("Protocoles IoT (MQTT, CoAP)").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m2).enseignant(ens.get(2)).build());
+        elementModuleRepository.save(ElementModule.builder().code("SSE-S2-M1-E2").intitule("Edge AI & TinyML").coefficient(1.5).hasTd(false).hasTp(true).hasProjet(true).module(m2).enseignant(ens.get(3)).build());
+    }
+
+    /**
+     * Pre-remplit des notes pour la majorite des etudiants d'une filiere.
+     * Laisse les 5 derniers sans notes pour la demo.
+     */
+    private void prefillNotesForFiliere(String filierePrefix, Long moduleId, Long enseignantId) {
+        List<User> etudiants = userRepository.findByRole(Role.ENS);
+        List<ElementModule> elements = elementModuleRepository.findByModuleId(moduleId);
+
+        java.util.Random random = new java.util.Random(42); // seed pour reproductibilite
+        int count = 0;
+
+        for (User etu : etudiants) {
+            if (!etu.getEmail().startsWith(filierePrefix + ".")) continue;
+
+            // Laisser les 5 derniers pour la demo manuelle
+            count++;
+            int totalForFiliere = (int) etudiants.stream()
+                .filter(u -> u.getEmail().startsWith(filierePrefix + ".")).count();
+            if (count > totalForFiliere - 5) break;
+
+            for (ElementModule el : elements) {
+                // Note Exam entre 7 et 18
+                double examNote = 7.0 + random.nextDouble() * 11.0;
+                examNote = Math.round(examNote * 4) / 4.0; // arrondir au 0.25
+                noteRepository.save(Note.builder()
+                    .etudiant(etu).elementModule(el)
+                    .typeEvaluation(TypeEvaluation.EXAM)
+                    .valeur(examNote).build());
+
+                // Note TD si element a TD
+                if (el.isHasTd()) {
+                    double tdNote = 10.0 + random.nextDouble() * 10.0;
+                    tdNote = Math.round(tdNote * 4) / 4.0;
+                    noteRepository.save(Note.builder()
+                        .etudiant(etu).elementModule(el)
+                        .typeEvaluation(TypeEvaluation.TD)
+                        .valeur(tdNote).build());
+                }
+
+                // Note TP si element a TP
+                if (el.isHasTp()) {
+                    double tpNote = 8.0 + random.nextDouble() * 12.0;
+                    tpNote = Math.round(tpNote * 4) / 4.0;
+                    noteRepository.save(Note.builder()
+                        .etudiant(etu).elementModule(el)
+                        .typeEvaluation(TypeEvaluation.TP)
+                        .valeur(tpNote).build());
+                }
+            }
+        }
+        log.info("Pre-remplissage notes {} : {} etudiants traites", filierePrefix, count);
     }
 }

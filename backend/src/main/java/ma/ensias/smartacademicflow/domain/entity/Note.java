@@ -2,6 +2,7 @@ package ma.ensias.smartacademicflow.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -10,7 +11,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "notes", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"etudiant_id", "element_module_id"})
+    @UniqueConstraint(columnNames = {"etudiant_id", "element_module_id", "type_evaluation"})
 })
 @EntityListeners(AuditingEntityListener.class)
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -27,6 +28,11 @@ public class Note {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "element_module_id", nullable = false)
     private ElementModule elementModule;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_evaluation", nullable = false)
+    @Builder.Default
+    private TypeEvaluation typeEvaluation = TypeEvaluation.EXAM;
 
     @Column(nullable = false)
     private Double valeur;

@@ -5,12 +5,13 @@ import lombok.RequiredArgsConstructor;
 import ma.ensias.smartacademicflow.domain.entity.Absence;
 import ma.ensias.smartacademicflow.domain.entity.ElementModule;
 import ma.ensias.smartacademicflow.domain.entity.User;
+import ma.ensias.smartacademicflow.domain.enums.Role;
+import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import ma.ensias.smartacademicflow.dto.AbsenceRequest;
 import ma.ensias.smartacademicflow.dto.NoteDTO;
 import ma.ensias.smartacademicflow.dto.NoteSaisieRequest;
 import ma.ensias.smartacademicflow.repository.ElementModuleRepository;
 import ma.ensias.smartacademicflow.repository.UserRepository;
-import ma.ensias.smartacademicflow.domain.enums.Role;
 import ma.ensias.smartacademicflow.service.AbsenceService;
 import ma.ensias.smartacademicflow.service.NoteService;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +45,9 @@ public class EnseignantController {
             map.put("code", el.getCode());
             map.put("intitule", el.getIntitule());
             map.put("coefficient", el.getCoefficient());
+            map.put("hasTd", el.isHasTd());
+            map.put("hasTp", el.isHasTp());
+            map.put("hasProjet", el.isHasProjet());
             map.put("moduleIntitule", el.getModule().getIntitule());
             map.put("moduleCode", el.getModule().getCode());
             map.put("semestre", el.getModule().getSemestre());
@@ -55,12 +59,25 @@ public class EnseignantController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Retourne les etudiants filtres par filiere (basee sur le prefix email)
+     */
     @GetMapping("/etudiants")
-    public ResponseEntity<List<Map<String, Object>>> getEtudiants() {
+    public ResponseEntity<List<Map<String, Object>>> getEtudiants(
+            @RequestParam(required = false) String filiere) {
         List<User> allUsers = userRepository.findByRole(Role.ENS);
         List<Map<String, Object>> result = new ArrayList<>();
+
         for (User u : allUsers) {
+            // Exclure les enseignants (leur email commence par "enseignant")
             if (u.getEmail().startsWith("enseignant")) continue;
+
+            // Filtrer par filiere si specifie (prefix email: gl.1@, 2ia.5@, etc.)
+            if (filiere != null && !filiere.isEmpty()) {
+                String emailPrefix = u.getEmail().split("\\.")[0].toLowerCase();
+                if (!emailPrefix.equalsIgnoreCase(filiere)) continue;
+            }
+
             Map<String, Object> map = new HashMap<>();
             map.put("id", u.getId());
             map.put("nom", u.getNom());
@@ -79,7 +96,12 @@ public class EnseignantController {
     }
 
     @GetMapping("/notes/element/{elementId}")
-    public ResponseEntity<List<NoteDTO>> getNotesByElement(@PathVariable Long elementId) {
+    public ResponseEntity<List<NoteDTO>> getNotesByElement(
+            @PathVariable Long elementId,
+            @RequestParam(required = false) TypeEvaluation type) {
+        if (type != null) {
+            return ResponseEntity.ok(noteService.getNotesByElementAndType(elementId, type));
+        }
         return ResponseEntity.ok(noteService.getNotesByElement(elementId));
     }
 

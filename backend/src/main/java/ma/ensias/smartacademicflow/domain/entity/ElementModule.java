@@ -24,6 +24,18 @@ public class ElementModule {
     @Column(nullable = false)
     private Double coefficient;
 
+    @Column(name = "has_td")
+    @Builder.Default
+    private boolean hasTd = true;
+
+    @Column(name = "has_tp")
+    @Builder.Default
+    private boolean hasTp = false;
+
+    @Column(name = "has_projet")
+    @Builder.Default
+    private boolean hasProjet = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "module_id", nullable = false)
     private Module module;

@@ -104,6 +104,7 @@ public class EnseignantController {
     }
 
     @GetMapping("/notes/element/{elementId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<NoteDTO>> getNotesByElement(
             @PathVariable Long elementId,
             @RequestParam(required = false) TypeEvaluation type) {

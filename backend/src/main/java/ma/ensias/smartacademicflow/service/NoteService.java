@@ -122,18 +122,21 @@ public class NoteService {
         return mapToDTO(savedNote);
     }
 
+    @Transactional(readOnly = true)
     public List<NoteDTO> getNotesByElement(Long elementModuleId) {
         return noteRepository.findByElementModuleId(elementModuleId).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<NoteDTO> getNotesByElementAndType(Long elementModuleId, TypeEvaluation type) {
         return noteRepository.findByElementModuleIdAndTypeEvaluation(elementModuleId, type).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<NoteDTO> getNotesByEtudiant(Long etudiantId) {
         return noteRepository.findByEtudiantId(etudiantId).stream()
                 .map(this::mapToDTO)

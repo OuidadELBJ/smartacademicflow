@@ -57,7 +57,7 @@ export default function DashboardPage() {
   }
 
   // Get unique modules
-  const modules = [...new Set(elements.map(e => e.moduleIntitule))];
+  const modules = Array.from(new Set(elements.map(e => e.moduleIntitule)));
 
   return (
     <DashboardLayout>

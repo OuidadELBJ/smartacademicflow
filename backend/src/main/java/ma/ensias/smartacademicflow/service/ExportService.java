@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import ma.ensias.smartacademicflow.domain.entity.Note;
 import ma.ensias.smartacademicflow.repository.NoteRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.StringWriter;
 import java.util.List;
@@ -18,6 +19,7 @@ public class ExportService {
     /**
      * Export CSV au format Apogee
      */
+    @Transactional(readOnly = true)
     public String exportApogeeCSV(Long elementModuleId) {
         List<Note> notes = noteRepository.findByElementModuleId(elementModuleId);
 

@@ -56,6 +56,7 @@ public class ScolariteController {
     }
 
     @GetMapping("/export/apogee/{elementId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<byte[]> exportApogee(@PathVariable Long elementId) {
         String csv = exportService.exportApogeeCSV(elementId);
         byte[] csvBytes = csv.getBytes();

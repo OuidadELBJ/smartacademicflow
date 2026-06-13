@@ -30,7 +30,7 @@ export default function ChatbotPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Bonjour, je suis l'assistant academique SmartAcademicFlow. Je peux analyser le parcours d'un etudiant, identifier ses points forts/faibles, et vous aider dans les decisions de rachat.\n\nTapez un nom d'etudiant pour obtenir sa synthese complete, ou posez une question (ex: \"synthese AABANE\", \"cas limites GL\", \"eligible rachat\").",
+      content: "Bonjour, je suis l'assistant academique SmartAcademicFlow.\n\nJe peux vous aider avec :\n• Analyse du parcours d'un etudiant (tapez son nom)\n• Reglement ENSIAS : rattrapage, rachat, absences, validation\n• Cas limites eligibles au rachat\n• Simulation de rattrapage\n\nBasé sur le Reglement Interieur ENSIAS (Cycle Ingenieur 2021).",
       type: "text",
     },
   ]);
@@ -43,10 +43,12 @@ export default function ChatbotPage() {
   }, [messages]);
 
   const suggestedQuestions = [
-    "Synthese AABANE ABDERRAHIM",
-    "Cas limites eligibles au rachat",
-    "Etudiants ajournes",
-    "Regles de rachat Article 35-37",
+    "Conditions de rattrapage",
+    "Regles de rachat",
+    "Absence injustifiee",
+    "Synthese AABANE",
+    "Cas limites eligibles",
+    "Validation module",
   ];
 
   const handleSend = async (question?: string) => {
@@ -83,8 +85,8 @@ export default function ChatbotPage() {
 
             // Build analysis
             const fortes = synthese.elements.filter((e: SyntheseElement) => e.moyenne >= 14);
-            const faibles = synthese.elements.filter((e: SyntheseElement) => e.moyenne < 10 && !e.isBlockedByArticle39);
-            const eligibles = synthese.elements.filter((e: SyntheseElement) => e.noteExam !== null && e.noteExam >= 8 && e.noteExam < 10 && !e.isBlockedByArticle39);
+            const faibles = synthese.elements.filter((e: SyntheseElement) => e.moyenne < 12 && !e.isBlockedByArticle39);
+            const eligibles = synthese.elements.filter((e: SyntheseElement) => e.moyenne >= 10 && e.moyenne < 12 && !e.isBlockedByArticle39);
             const bloquees = synthese.elements.filter((e: SyntheseElement) => e.isBlockedByArticle39);
 
             let analysis = `**Synthese academique : ${synthese.etudiantNom} ${synthese.etudiantPrenom}**\n`;
@@ -92,35 +94,37 @@ export default function ChatbotPage() {
 
             if (fortes.length > 0) {
               analysis += `Points forts (${fortes.length}) :\n`;
-              fortes.forEach((e: SyntheseElement) => { analysis += `  - ${e.elementIntitule} : ${e.moyenne}/20\n`; });
+              fortes.forEach((e: SyntheseElement) => { analysis += `  ✓ ${e.elementIntitule} : ${e.moyenne}/20\n`; });
               analysis += "\n";
             }
 
             if (faibles.length > 0) {
-              analysis += `Points faibles (${faibles.length}) :\n`;
-              faibles.forEach((e: SyntheseElement) => { analysis += `  - ${e.elementIntitule} : ${e.moyenne}/20\n`; });
+              analysis += `Non valides - Rattrapage (${faibles.length}) :\n`;
+              faibles.forEach((e: SyntheseElement) => { analysis += `  ✗ ${e.elementIntitule} : ${e.moyenne}/20 (ecart ${(12 - e.moyenne).toFixed(2)} pts)\n`; });
               analysis += "\n";
             }
 
             if (eligibles.length > 0) {
-              analysis += `Eligible au rachat (${eligibles.length}) :\n`;
-              eligibles.forEach((e: SyntheseElement) => { analysis += `  - ${e.elementIntitule} : Exam ${e.noteExam}/20 (ecart ${(10 - (e.noteExam || 0)).toFixed(2)} pts)\n`; });
+              analysis += `Eligible au rachat [10-12) (${eligibles.length}) :\n`;
+              eligibles.forEach((e: SyntheseElement) => { analysis += `  → ${e.elementIntitule} : ${e.moyenne}/20 (ecart ${(12 - e.moyenne).toFixed(2)} pts vers 12)\n`; });
               analysis += "\n";
             }
 
             if (bloquees.length > 0) {
-              analysis += `Blocage Article 39 (${bloquees.length}) :\n`;
-              bloquees.forEach((e: SyntheseElement) => { analysis += `  - ${e.elementIntitule} : 0/20 (absence injustifiee)\n`; });
+              analysis += `Blocage Article 35 (${bloquees.length}) :\n`;
+              bloquees.forEach((e: SyntheseElement) => { analysis += `  ⛔ ${e.elementIntitule} : 0/20 (absence injustifiee)\n`; });
               analysis += "\n";
             }
 
             analysis += "Recommandation : ";
-            if (synthese.moyenneGenerale >= 10) {
-              analysis += "Etudiant en bonne voie de validation.";
+            if (synthese.moyenneGenerale >= 12) {
+              analysis += "Module valide — etudiant admis.";
             } else if (eligibles.length > 0) {
-              analysis += `Rachat prioritaire sur ${eligibles[0].elementIntitule} (+${(10 - (eligibles[0].noteExam || 0)).toFixed(2)} pts necessaires).`;
+              analysis += `Rachat prioritaire sur ${eligibles[0].elementIntitule} (+${(12 - eligibles[0].moyenne).toFixed(2)} pts pour atteindre 12).`;
+            } else if (faibles.length > 0) {
+              analysis += "Rattrapage requis dans les elements non valides (note < 12).";
             } else {
-              analysis += "Rattrapage recommande pour les modules faibles.";
+              analysis += "Pas d'action requise.";
             }
 
             setMessages(prev => [...prev, {
@@ -134,44 +138,50 @@ export default function ChatbotPage() {
         } catch (err) { console.error(err); }
       }
 
-      // If not a student query, handle as general question
+      // If not a student query, handle as general question via RAG
       if (!studentFound) {
-        let response = "";
-        const qLower = q.toLowerCase();
+        try {
+          // Call RAG service for academic questions
+          const ragRes = await api.get("/rm/rag-query", { params: { question: q } });
+          const ragData = ragRes.data;
 
-        if (qLower.includes("cas limite") || qLower.includes("eligible") || qLower.includes("rachat")) {
-          try {
-            const res = await api.get("/rm/cas-limites");
-            const cas = res.data;
-            response = `**Cas limites eligibles au rachat : ${cas.length} etudiant(s)**\n\n`;
-            if (cas.length > 0) {
-              const top10 = cas.slice(0, 10);
-              top10.forEach((c: any, i: number) => {
-                response += `${i + 1}. ${c.etudiantNom} ${c.etudiantPrenom} - ${c.elementIntitule} : ${c.noteExam}/20 (ecart -${c.ecartValidation} pts)${c.isRachete ? " [RACHETE]" : ""}\n`;
-              });
-              if (cas.length > 10) response += `\n... et ${cas.length - 10} autre(s)\n`;
-              response += "\nCritere : note d'examen entre 8 et 10/20, non bloquee par Art. 39.\nRachat max : +2 pts (Art. 36), motif obligatoire (Art. 37).";
-            } else {
-              response = "Aucun cas limite actuellement. Tous les etudiants sont soit valides (>=10), soit en rattrapage (<8), soit bloques (Art. 39).";
-            }
-          } catch { response = "Erreur lors de la recuperation des cas limites."; }
-        } else if (qLower.includes("ajourne") || qLower.includes("echec")) {
-          response = "Pour voir les etudiants ajournes (<7/20), consultez le tableau de bord (Suivi Avancement).\n\nUn etudiant ajourne doit passer en rattrapage. Il ne peut pas beneficier d'un rachat (Art. 35 : uniquement entre 8 et 10).";
-        } else if (qLower.includes("article") || qLower.includes("regle")) {
-          response = "**Regles academiques principales :**\n\n";
-          response += "- Art. 32 : Moyenne de validation = 10/20\n";
-          response += "- Art. 33 : Rattrapage si note entre 7 et 10\n";
-          response += "- Art. 35 : Rachat possible entre 8 et 10/20\n";
-          response += "- Art. 36 : Rachat max +2 points\n";
-          response += "- Art. 37 : Motif obligatoire au PV\n";
-          response += "- Art. 38 : Notes definitives apres validation PV\n";
-          response += "- Art. 39 : Absence injustifiee = 0/20, irrachetable\n\n";
-          response += "Tapez un nom d'etudiant pour analyser son cas specifique.";
-        } else {
-          response = "Je n'ai pas trouve d'etudiant correspondant a votre recherche.\n\nEssayez :\n- Un nom d'etudiant (ex: \"AABANE\", \"BARKANI\")\n- \"Cas limites\" pour voir les etudiants eligibles au rachat\n- \"Regles\" pour consulter le reglement\n\nJe peux fournir une synthese complete par etudiant avec detail des notes (Exam/TD/TP/Projet), analyse des forces/faiblesses, et recommandations de rachat.";
+          let response = ragData.reponse + "\n";
+          if (ragData.sources && ragData.sources.length > 0) {
+            response += "\n---\n📚 Sources :\n";
+            ragData.sources.forEach((s: any) => {
+              response += `• ${s.article}${s.page ? " (p." + s.page + ")" : ""}\n`;
+            });
+            response += `\n🎯 Confiance : ${Math.round(ragData.confiance * 100)}%`;
+          }
+
+          setMessages(prev => [...prev, { role: "assistant", content: response, type: "text" }]);
+        } catch {
+          // Fallback: handle locally
+          let response = "";
+          const qLower = q.toLowerCase();
+
+          if (qLower.includes("cas limite") || qLower.includes("eligible") || qLower.includes("rachat")) {
+            try {
+              const res = await api.get("/rm/cas-limites");
+              const cas = res.data;
+              response = `**Cas limites eligibles au rachat : ${cas.length} etudiant(s)**\n\n`;
+              if (cas.length > 0) {
+                const top10 = cas.slice(0, 10);
+                top10.forEach((c: any, i: number) => {
+                  response += `${i + 1}. ${c.etudiantNom} ${c.etudiantPrenom} - ${c.elementIntitule} : ${c.noteElement}/20 (ecart -${c.ecartValidation} pts vers 12)\n`;
+                });
+                if (cas.length > 10) response += `\n... et ${cas.length - 10} autre(s)\n`;
+                response += "\nCritere : note element entre 10 et 12/20 (Art. 30).\nRachat max : +2 pts, motif obligatoire (Art. 30).";
+              } else {
+                response = "Aucun cas limite actuellement.";
+              }
+            } catch { response = "Erreur lors de la recuperation des cas limites."; }
+          } else {
+            response = "Je n'ai pas trouve d'etudiant correspondant a votre recherche.\n\nEssayez :\n- Un nom d'etudiant (ex: \"AABANE\", \"BARKANI\")\n- \"Cas limites\" pour voir les eligibles au rachat\n- \"Rattrapage\" pour les conditions de rattrapage\n- \"Rachat\" pour les regles de rachat\n- \"Absence\" pour les regles d'absence\n- \"Validation\" pour les seuils";
+          }
+
+          setMessages(prev => [...prev, { role: "assistant", content: response, type: "text" }]);
         }
-
-        setMessages(prev => [...prev, { role: "assistant", content: response, type: "text" }]);
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: "assistant", content: "Erreur lors de l'analyse. Veuillez reessayer.", type: "text" }]);
@@ -188,8 +198,8 @@ export default function ChatbotPage() {
             <MessageSquare size={20} className="text-orange-600" strokeWidth={1.5} />
           </div>
           <div>
-            <h1 className="text-slate-900 text-xl font-bold">Assistant Academique</h1>
-            <p className="text-slate-500 text-xs">Synthese par etudiant, analyse de performance, aide au rachat</p>
+            <h1 className="text-slate-900 text-xl font-bold">Assistant Academique IA</h1>
+            <p className="text-slate-500 text-xs">RAG Reglement ENSIAS | Analyse etudiants | Aide a la deliberation</p>
           </div>
         </div>
 

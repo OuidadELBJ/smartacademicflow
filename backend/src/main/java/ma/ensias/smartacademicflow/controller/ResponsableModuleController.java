@@ -349,6 +349,32 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Proxy vers le service RAG pour les questions reglementaires
+     */
+    @GetMapping("/rag-query")
+    public ResponseEntity<Map<String, Object>> ragQuery(@RequestParam String question) {
+        String aiServiceUrl = "http://ai-service:8000";
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = org.springframework.web.reactive.function.client.WebClient.create(aiServiceUrl)
+                    .post()
+                    .uri("/api/rag/query")
+                    .bodyValue(Map.of("question", question))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "reponse", "Service IA temporairement indisponible. Veuillez reessayer.",
+                    "sources", java.util.Collections.emptyList(),
+                    "confiance", 0.0
+            ));
+        }
+    }
+
+    /**
      * Liste des etudiants des filieres associees aux modules du RM
      */
     @GetMapping("/etudiants")

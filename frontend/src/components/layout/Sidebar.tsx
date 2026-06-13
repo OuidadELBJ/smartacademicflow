@@ -72,7 +72,7 @@ const navItems: NavItem[] = [
     roles: ["RM"],
   },
   {
-    label: "Chatbot Juridique",
+    label: "Assistant IA",
     href: "/rm/chatbot",
     icon: <MessageSquare size={20} strokeWidth={1.5} />,
     roles: ["RM"],

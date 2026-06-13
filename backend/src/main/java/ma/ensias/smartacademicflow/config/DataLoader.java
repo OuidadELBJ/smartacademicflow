@@ -465,23 +465,26 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
-     * Pre-remplit des notes pour TOUS les etudiants de TOUTES les filieres.
-     * Laisse les 5 derniers de chaque filiere sans notes pour la demo.
+     * Pre-remplit des notes avec progression VARIABLE par element.
+     * Certains elements auront 100%, d'autres 50%, 77%, 30%, etc.
+     * Cela donne un dashboard RM realiste avec des progressions variees.
      */
     private void prefillAllNotes() {
         String[] filierePrefixes = {"gl", "2ia", "bia", "idf", "cscc", "sse", "d2s", "2scl"};
         List<ElementModule> allElements = elementModuleRepository.findAll();
         java.util.Random random = new java.util.Random(42);
 
+        // Progressions variees a appliquer aux elements (en % d'etudiants remplis)
+        double[] progressions = {1.0, 0.92, 0.77, 0.50, 0.65, 0.88, 0.30, 0.95, 0.70, 0.83, 0.45, 0.60};
+        int progIndex = 0;
+
         for (String prefix : filierePrefixes) {
-            // Recuperer etudiants de cette filiere
             List<User> filiereEtudiants = userRepository.findByRole(Role.ENS).stream()
                 .filter(u -> u.getEmail().startsWith(prefix + "."))
                 .collect(java.util.stream.Collectors.toList());
 
             if (filiereEtudiants.isEmpty()) continue;
 
-            // Trouver les elements de cette filiere
             String filiereCodeUpper = prefix.toUpperCase();
             if (prefix.equals("bia")) filiereCodeUpper = "BIA";
             if (prefix.equals("2ia")) filiereCodeUpper = "2IA";
@@ -498,13 +501,17 @@ public class DataLoader implements CommandLineRunner {
 
             if (filiereElements.isEmpty()) continue;
 
-            // Remplir les notes pour tous SAUF les 5 derniers
-            int limit = Math.max(0, filiereEtudiants.size() - 5);
+            for (ElementModule el : filiereElements) {
+                // Chaque element a une progression differente
+                double prog = progressions[progIndex % progressions.length];
+                progIndex++;
 
-            for (int i = 0; i < limit; i++) {
-                User etu = filiereEtudiants.get(i);
+                int limit = (int) Math.round(filiereEtudiants.size() * prog);
+                limit = Math.min(limit, filiereEtudiants.size());
 
-                for (ElementModule el : filiereElements) {
+                for (int i = 0; i < limit; i++) {
+                    User etu = filiereEtudiants.get(i);
+
                     // Note EXAM : entre 5 et 19, distribution realiste
                     double examNote = 5.0 + random.nextDouble() * 14.0;
                     examNote = Math.round(examNote * 4) / 4.0;
@@ -544,8 +551,8 @@ public class DataLoader implements CommandLineRunner {
                     }
                 }
             }
-            log.info("  {} : {}/{} etudiants pre-remplis ({} elements)",
-                prefix, limit, filiereEtudiants.size(), filiereElements.size());
+            log.info("  {} : {} etudiants, {} elements (progressions variees)",
+                prefix, filiereEtudiants.size(), filiereElements.size());
         }
     }
 

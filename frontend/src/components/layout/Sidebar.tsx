@@ -60,15 +60,9 @@ const navItems: NavItem[] = [
     roles: ["RM"],
   },
   {
-    label: "Deliberation",
+    label: "Deliberation & Rachat",
     href: "/rm/deliberation",
     icon: <Scale size={20} strokeWidth={1.5} />,
-    roles: ["RM"],
-  },
-  {
-    label: "Rachat de Notes",
-    href: "/rm/rachat",
-    icon: <FileText size={20} strokeWidth={1.5} />,
     roles: ["RM"],
   },
   {

@@ -1,116 +1,256 @@
 """
 RAG Service - Règlement Intérieur ENSIAS (Cycle Ingénieur)
-Source: Règlement intérieur Cycle ingénieur - MAJ 10 sept 2021 (après conseil 14 sept 21)
-https://ensias.um5.ac.ma
+Source: Règlement des études de l'ENSIAS - Cycle Ingénieur
+Version du 10 Septembre 2021 - Résolution CE ENSIAS 18/2021
 
-Ce service implémente:
-1. Un assistant RM pour les cas limites avec recommandations explicables
-2. Un Chat RAG sur les règlements et PV académiques ENSIAS
+Ce service implémente un Chat RAG sur les règlements et PV académiques ENSIAS.
+Le texte intégral du règlement officiel est indexé et interrogeable.
 """
 
-import re
 from typing import Optional
 
 
 # ============================================================
-# REGLEMENT ENSIAS - ARTICLES PERTINENTS (extraits officiels)
-# Source: Règlement intérieur Cycle ingénieur ENSIAS 2021
+# REGLEMENT COMPLET ENSIAS - ARTICLES EXTRAITS DU DOCUMENT OFFICIEL
+# Source: Règlement des études de l'ENSIAS Cycle Ingénieur 2021
 # ============================================================
 
 REGLEMENT_ENSIAS = {
+    "Article 1": {
+        "titre": "Conditions d'acces et procedures de selection",
+        "contenu": (
+            "Admission en premiere annee du cycle ingenieur par concours (CPGE/CNC/DEUG SM ou SMI) "
+            "ou sur etude de dossier (Licence SMA/SMI/Bachelor). "
+            "Criteres d'eligibilite DEUG : moins de 22 ans, DEUG en 2 ans avec mention AB ou 3 ans avec mention B."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 5,
+    },
+    "Article 2": {
+        "titre": "Duree et contenu de la formation",
+        "contenu": (
+            "Le cycle ingenieur est un cursus modulaire de 3 annees en 6 semestres (S1-S6). "
+            "Sanctionne par un diplome d'ingenieur d'etat. "
+            "L'annee universitaire comporte 2 semestres de 18 semaines chacun (hors stages)."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 5,
+    },
+    "Article 3": {
+        "titre": "Filieres du cycle ingenieur",
+        "contenu": (
+            "L'ENSIAS offre 9 filieres : 2IA (Intelligence Artificielle), 2SCL (Smart Supply Chain & Logistics), "
+            "BI&A (Business Intelligence & Analytics), GD (Genie de la Data), GL (Genie Logiciel), "
+            "IDF (Ingenierie Digitale de la Finance), IDSIT (Data Science and IoT avec options IWA et IIMS), "
+            "SSE (Systemes Intelligents avec options Industrie 4.0 et Systemes autonomes), "
+            "SSI (Securite des Systemes d'Information). Tronc commun en 1A, specialisation progressive."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 6,
+    },
+    "Article 4": {
+        "titre": "Composition d'une filiere",
+        "contenu": (
+            "Une filiere ingenieur est composee de 30 a 40 modules repartis sur 5 semestres "
+            "avec un volume horaire global semestriel minimal de 384 heures, "
+            "plus un PFE realise durant tout le sixieme semestre."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 7,
+    },
+    "Article 5": {
+        "titre": "Definition d'un module",
+        "contenu": (
+            "Le module est l'unite fondamentale du systeme de formation. Il comprend 1 a 3 elements de module "
+            "qui peuvent etre enseignes dans une ou plusieurs langues. Un element de module peut etre une matiere "
+            "(cours + TD + TP) ou une activite pratique (terrain/projet). Les elements constituent une unite coherente."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 7,
+    },
+    "Article 6": {
+        "titre": "Projet de Fin d'Etudes (PFE)",
+        "contenu": (
+            "Le PFE est specifique a une filiere, d'une duree d'un semestre, obligatoire. "
+            "Realise de preference en entreprise. En monome ou binome. "
+            "Sujet valide par le coordonnateur. Pre-soutenance de mi-parcours obligatoire. "
+            "Le jury prononce l'acceptation du PFE (pas la reussite de l'annee). "
+            "PFE valide si note >= 12/20."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 8,
+    },
+    "Article 7": {
+        "titre": "Stages d'ete",
+        "contenu": (
+            "2 stages obligatoires de 1 a 2 mois pendant les vacances d'ete : "
+            "Stage ouvrier en fin de 1A, Stage d'etudes en fin de 2A."
+        ),
+        "chapitre": "I - Enseignement",
+        "page": 9,
+    },
+    "Article 10": {
+        "titre": "Evaluation des acquis",
+        "contenu": (
+            "L'evaluation s'effectue sous forme de controle continu ou d'examen final : "
+            "epreuves ecrites, tests en ligne, devoirs, exposes, rapports ou tout autre moyen. "
+            "Le controle s'effectue pour chaque element de module conformement au calendrier valide par la Direction."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 9,
+    },
+    "Article 12": {
+        "titre": "Note d'un element de module",
+        "contenu": (
+            "Chaque controle est note de 0 a 20. La note finale pour chaque element de module est "
+            "la moyenne des notes obtenues dans chaque controle en multipliant chaque note par son coefficient "
+            "conformement au descriptif de la filiere."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 10,
+    },
+    "Article 13": {
+        "titre": "Note de module",
+        "contenu": (
+            "La note d'un module est une moyenne ponderee des differentes evaluations des elements qui le composent. "
+            "La ponderation tient compte de la nature des evaluations, des volumes horaires des differents elements "
+            "ainsi que de leur nature conformement au descriptif de la filiere."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 10,
+    },
+    "Article 14": {
+        "titre": "Validation de module",
+        "contenu": (
+            "Un module est valide si sa note est superieure ou egale a 12/20 "
+            "ET aucune note d'element du module n'est strictement inferieure a 05/20."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 10,
+    },
+    "Article 16": {
+        "titre": "Controle de rattrapage",
+        "contenu": (
+            "Un eleve n'ayant pas valide un ou plusieurs modules beneficie d'un controle de rattrapage. "
+            "Realise apres la fin du semestre. Un seul rattrapage par module et par annee. "
+            "Si note module < 12 : rattrapage dans les elements ou note < 12. "
+            "Si note module >= 12 : rattrapage dans les elements ou note < 5. "
+            "Note Element = Max(Note Examen, Note Rattrapage). "
+            "Note Module = Max(Note Module avant Rattrapage, Min(Note Module apres Rattrapage, 12))."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 11,
+    },
+    "Article 17": {
+        "titre": "Jury de semestre",
+        "contenu": (
+            "Compose du Chef d'etablissement (president), coordonnateur pedagogique, "
+            "coordonnateurs des modules, enseignants d'encadrement. "
+            "Arrete la liste des eleves ayant valide les modules et ceux autorises au rattrapage."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 11,
+    },
+    "Article 18": {
+        "titre": "Moyenne generale d'annee",
+        "contenu": (
+            "La moyenne generale de l'annee est egale a la moyenne des notes des differents modules "
+            "suivis durant l'annee consideree selon le descriptif de la filiere."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 11,
+    },
     "Article 19": {
-        "titre": "Modalites d'evaluation",
-        "contenu": "L'evaluation des connaissances, des aptitudes et des competences pour chaque module "
-                   "s'effectue sous forme de controles continus et/ou d'examen final.",
-        "page": 8,
-    },
-    "Article 20": {
-        "titre": "Note du module",
-        "contenu": "La note d'un module est la moyenne ponderee des notes des elements de module qui le composent. "
-                   "Les coefficients de ponderation sont fixes par le coordonnateur pedagogique du module.",
-        "page": 8,
-    },
-    "Article 21": {
-        "titre": "Validation du module",
-        "contenu": "Un module est acquis par validation si la note du module est superieure ou egale a 12/20.",
-        "page": 8,
+        "titre": "Validation de la 1ere ou 2eme annee",
+        "contenu": (
+            "Une annee est validee si les 4 conditions sont satisfaites : "
+            "1) Moyenne generale >= 12/20. "
+            "2) Nombre de modules non valides <= [nombre de modules / 4]. "
+            "3) Aucune note de module < 05/20. "
+            "4) Aucune note de module fondamental < 08/20."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 12,
     },
     "Article 22": {
-        "titre": "Validation du semestre",
-        "contenu": "Un semestre est valide si tous les modules du semestre sont valides (note >= 12/20 pour chacun).",
-        "page": 9,
+        "titre": "Validation du cinquieme semestre",
+        "contenu": (
+            "Le 5eme semestre est valide si : "
+            "1) Moyenne generale S5 >= 12/20. "
+            "2) Nombre de modules non valides <= 2. "
+            "3) Aucune note de module < 05/20."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 12,
     },
-    "Article 25": {
-        "titre": "Conditions de rattrapage",
-        "contenu": "Si la note du module non valide est strictement inferieure a 12, l'eleve ingenieur passe le "
-                   "rattrapage uniquement dans les elements de module ou sa note est strictement inferieure a 12. "
-                   "Si la note du module non valide est superieure ou egale a 12, l'eleve ingenieur passe le "
-                   "rattrapage uniquement dans les elements de module ou sa note est strictement inferieure a 5.",
-        "page": 9,
+    "Article 23": {
+        "titre": "Validation du PFE",
+        "contenu": "Le PFE est valide si l'eleve y obtient une note >= 12/20.",
+        "chapitre": "I - Evaluation",
+        "page": 12,
+    },
+    "Article 24": {
+        "titre": "Obtention du diplome",
+        "contenu": (
+            "L'eleve obtient le diplome s'il valide les 2 premieres annees, le S5, le PFE et les 2 stages. "
+            "Moyenne globale = (Moy(A1) + Moy(A2) + Moy(S5) + Note(PFE)) / 4."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 13,
     },
     "Article 26": {
-        "titre": "Calcul note element apres rattrapage",
-        "contenu": "Seules les notes des elements du module ou l'eleve a passe un rattrapage changent selon la "
-                   "regle suivante : Note Element de Module = Max(Note Examen, Note Rattrapage).",
-        "page": 10,
+        "titre": "Annee de reserve",
+        "contenu": (
+            "Le Directeur peut accorder une annee de reserve si l'annee n'est pas validee "
+            "mais la moyenne >= 10/20. Une seule annee de reserve durant le cycle. "
+            "L'eleve suit obligatoirement les modules non valides. "
+            "Si l'annee de reserve n'est pas validee, l'eleve n'a plus le droit de se reinscrire."
+        ),
+        "chapitre": "I - Evaluation",
+        "page": 13,
     },
-    "Article 27": {
-        "titre": "Calcul note module apres rattrapage",
-        "contenu": "Apres rattrapage, la note du module est recalculee selon la regle suivante : "
-                   "Note Module = Max(Note Module avant Rattrapage, Min(Note Module apres Rattrapage, 12)). "
-                   "La note du module apres rattrapage est donc plafonnee a 12/20.",
-        "page": 10,
+    "Article 38": {
+        "titre": "Presence obligatoire et justification d'absence",
+        "contenu": (
+            "L'assiduite est obligatoire. Absences en TD/TP systematiquement relevees. "
+            "En cas d'absences repetees non justifiees, le jury peut interdire le rattrapage dans le module. "
+            "Justification : demande ecrite 3 jours avant (raison personnelle) ou "
+            "certificat medical homologue dans les 5 jours ouvrables (maladie)."
+        ),
+        "chapitre": "II - Droits et devoirs",
+        "page": 16,
     },
-    "Article 30": {
-        "titre": "Rachat de notes",
-        "contenu": "Le rachat est possible pour les notes d'elements de module comprises entre 10 et 11.75/20 "
-                   "(a moins de 2 points du seuil de validation a 12). Le rachat ne peut exceder une augmentation "
-                   "de 2 points maximum. Tout rachat doit etre motive et consigne dans le proces-verbal de deliberation.",
-        "page": 11,
-    },
-    "Article 31": {
-        "titre": "Conditions du rachat",
-        "contenu": "Le rachat est decide par le jury de deliberation sur proposition du responsable de module. "
-                   "Il ne peut concerner que les elements ou l'etudiant n'a pas d'absence injustifiee.",
-        "page": 11,
-    },
-    "Article 35": {
-        "titre": "Absence injustifiee a un examen",
-        "contenu": "Toute absence injustifiee a un examen entraine automatiquement la note de 0/20 pour l'element "
-                   "de module concerne. Cette note est verrouillee et ne peut faire l'objet d'aucun rachat ni deliberation "
-                   "favorable. L'etudiant est marque 'Defaillant' pour cet element.",
-        "page": 12,
-    },
-    "Article 36": {
-        "titre": "Absence justifiee",
-        "contenu": "L'etudiant absent pour raison medicale doit presenter un certificat medical dans les 48 heures. "
-                   "Le certificat est valide par la scolarite. L'etudiant justifie beneficie d'un examen de remplacement.",
-        "page": 12,
+    "Article 39": {
+        "titre": "Absences aux examens",
+        "contenu": (
+            "Les absences aux examens, meme justifiees par un certificat medical, ne sont en AUCUN CAS acceptees. "
+            "Toute absence a un examen entrainera la note ZERO au titre de l'examen concerne."
+        ),
+        "chapitre": "II - Droits et devoirs",
+        "page": 17,
     },
     "Article 40": {
-        "titre": "Jury de deliberation",
-        "contenu": "Le jury de deliberation se reunit a la fin de chaque semestre. Il est compose du coordonnateur "
-                   "pedagogique, des responsables de modules, et preside par le chef de filiere.",
-        "page": 13,
+        "titre": "Sanction de l'absenteisme",
+        "contenu": (
+            "Sanctions progressives selon le % d'absence dans un element de module : "
+            "x < 15% : penalite -x/50 sur la note. "
+            "15% <= x < 25% : penalite -2x/50. "
+            "25% <= x < 50% : penalite -3x/50. "
+            "x >= 50% : penalite -3 points ET interdiction de rattrapage dans cet element."
+        ),
+        "chapitre": "II - Droits et devoirs",
+        "page": 17,
     },
-    "Article 41": {
-        "titre": "Decisions du jury",
-        "contenu": "Les decisions du jury de deliberation sont : Admis (module valide), Non Admis (rattrapage requis), "
-                   "Ajourne (refait le module l'annee suivante). Le PV de deliberation est signe par le chef de filiere.",
-        "page": 13,
-    },
-    "Article 42": {
-        "titre": "Caractere definitif des notes",
-        "contenu": "Apres validation du PV semestriel par le chef de filiere, les notes sont definitives. "
-                   "Aucune modification n'est possible apres la signature du PV.",
-        "page": 14,
-    },
-    "Article 45": {
-        "titre": "Redoublement",
-        "contenu": "L'etudiant qui n'a pas valide tous les modules du semestre apres la session de rattrapage "
-                   "est declare ajourne. Il doit refaire les modules non valides l'annee suivante. "
-                   "Le redoublement n'est autorise qu'une seule fois par cycle.",
-        "page": 15,
+    "Article 47": {
+        "titre": "Fraude",
+        "contenu": (
+            "Toute fraude, tentative ou complicite : exclusion immediate de la salle, note zero automatique "
+            "a l'element de module, aucune autorisation de rattrapage. "
+            "Si fraude confirmee : note 0 definitive, module non valide (note eliminatoire). "
+            "L'eleve peut etre traduit devant le conseil de discipline."
+        ),
+        "chapitre": "II - Discipline",
+        "page": 19,
     },
 }
 
@@ -118,14 +258,15 @@ REGLEMENT_ENSIAS = {
 class RAGService:
     """
     Service RAG (Retrieval-Augmented Generation) pour le reglement ENSIAS.
+    Base sur le texte officiel du Reglement des Etudes Cycle Ingenieur 2021.
 
-    Deux modes de fonctionnement :
-    1. RAG Reglementaire : repond aux questions sur le reglement academique
-    2. Assistant RM : analyse les cas limites et recommande des decisions
+    Modes :
+    1. Chat RAG reglementaire : repond aux questions sur le reglement
+    2. Assistant RM deliberation : analyse cas limites et recommandations
 
     Regles strictes :
     - Ne JAMAIS inventer une regle
-    - Citer les articles sources
+    - Toujours citer les articles sources
     - Indiquer le niveau de confiance
     """
 
@@ -137,47 +278,55 @@ class RAGService:
         self._initialized = True
 
     def query(self, question: str) -> dict:
-        """Repond aux questions academiques en utilisant le reglement ENSIAS."""
+        """Repond aux questions en utilisant le reglement officiel ENSIAS."""
         q = question.lower()
 
         # Recherche d'articles pertinents
         sources = self._search_articles(q)
 
-        # Generation de reponse contextuelle
+        # Generation de reponse
         reponse = self._generate_response(q, sources)
 
         if not sources:
             sources = [
-                {"article": "Article 21", "page": 8, "extrait": REGLEMENT_ENSIAS["Article 21"]["contenu"]},
-                {"article": "Article 25", "page": 9, "extrait": REGLEMENT_ENSIAS["Article 25"]["contenu"]},
+                {"article": "Article 14", "page": 10, "extrait": REGLEMENT_ENSIAS["Article 14"]["contenu"]},
+                {"article": "Article 16", "page": 11, "extrait": REGLEMENT_ENSIAS["Article 16"]["contenu"]},
             ]
 
-        confiance = min(len(sources) * 0.25 + 0.3, 0.95)
+        confiance = min(len(sources) * 0.2 + 0.4, 0.95)
 
         return {
             "reponse": reponse,
-            "sources": sources[:4],
+            "sources": sources[:5],
             "confiance": round(confiance, 2),
         }
 
     def _search_articles(self, question: str) -> list:
         """Recherche les articles pertinents par mots-cles."""
         keywords_map = {
-            "Article 19": ["evaluation", "controle", "examen", "modalite"],
-            "Article 20": ["note module", "moyenne ponderee", "coefficient", "calcul"],
-            "Article 21": ["validation", "module valide", "12", "seuil"],
-            "Article 22": ["semestre", "validation semestre", "tous les modules"],
-            "Article 25": ["rattrapage", "condition", "element", "inferieure a 12", "inferieure a 5"],
-            "Article 26": ["note element", "max", "apres rattrapage", "note examen"],
-            "Article 27": ["note module", "plafonne", "12", "max", "min", "apres rattrapage"],
-            "Article 30": ["rachat", "10", "11.75", "2 points", "augmentation"],
-            "Article 31": ["rachat", "jury", "responsable module", "condition"],
-            "Article 35": ["absence injustifiee", "0/20", "defaillant", "bloque", "verrouille"],
-            "Article 36": ["absence justifiee", "certificat medical", "48 heures", "remplacement"],
-            "Article 40": ["jury", "deliberation", "semestre", "chef filiere"],
-            "Article 41": ["decision", "admis", "non admis", "ajourne", "pv"],
-            "Article 42": ["definitif", "pv", "signature", "modification", "impossible"],
-            "Article 45": ["redoublement", "ajourne", "refaire", "annee suivante"],
+            "Article 1": ["admission", "acces", "concours", "cpge", "cnc", "deug", "licence"],
+            "Article 2": ["duree", "formation", "semestre", "3 ans", "6 semestres"],
+            "Article 3": ["filiere", "2ia", "gl", "bia", "gd", "idf", "sse", "ssi", "2scl", "idsit"],
+            "Article 4": ["composition", "30 a 40 modules", "384 heures"],
+            "Article 5": ["module", "element", "td", "tp", "cours", "definition", "unite"],
+            "Article 6": ["pfe", "projet fin", "soutenance", "6eme semestre"],
+            "Article 7": ["stage", "ete", "ouvrier", "etudes"],
+            "Article 10": ["evaluation", "controle", "examen", "epreuve"],
+            "Article 12": ["note element", "coefficient", "moyenne element"],
+            "Article 13": ["note module", "moyenne ponderee", "ponderation"],
+            "Article 14": ["validation module", "12/20", "05/20", "valide", "seuil"],
+            "Article 16": ["rattrapage", "non valide", "max", "min", "12", "element inferieur"],
+            "Article 17": ["jury", "semestre", "deliberation", "president"],
+            "Article 18": ["moyenne generale", "annee"],
+            "Article 19": ["validation annee", "1ere", "2eme", "4 conditions", "fondamental"],
+            "Article 22": ["5eme semestre", "s5", "validation s5"],
+            "Article 23": ["validation pfe", "12/20"],
+            "Article 24": ["diplome", "obtention", "ingenieur d'etat", "moyenne globale"],
+            "Article 26": ["reserve", "annee reserve", "10/20", "redoublement", "reinscrire"],
+            "Article 38": ["assiduite", "presence", "justification", "certificat medical", "5 jours"],
+            "Article 39": ["absence examen", "zero", "aucun cas", "meme justifiee"],
+            "Article 40": ["sanction", "absenteisme", "penalite", "pourcentage", "15%", "25%", "50%"],
+            "Article 47": ["fraude", "plagiat", "exclusion", "tentative", "complicite", "zero definitif"],
         }
 
         sources = []
@@ -193,137 +342,207 @@ class RAGService:
         return sources
 
     def _generate_response(self, question: str, sources: list) -> str:
-        """Genere une reponse structuree basee sur les articles trouves."""
+        """Genere une reponse structuree."""
 
         # --- RATTRAPAGE ---
-        if "rattrapage" in question or "condition" in question and "rattraper" in question:
+        if "rattrapage" in question:
             return (
-                "Conditions de rattrapage (Reglement ENSIAS) :\n\n"
-                "Un module est valide si sa note >= 12/20 (Art. 21).\n"
-                "Si le module N'EST PAS valide, 2 cas se presentent :\n\n"
-                "CAS 1 — Note module < 12 :\n"
-                "  → Rattrapage dans TOUS les elements ou note element < 12\n\n"
-                "CAS 2 — Note module >= 12 (non valide pour autre raison) :\n"
-                "  → Rattrapage UNIQUEMENT dans les elements ou note element < 5\n\n"
-                "Apres rattrapage :\n"
-                "  • Note Element = Max(Note Examen, Note Rattrapage) [Art. 26]\n"
-                "  • Note Module = Max(Note Module AVANT, Min(Note Module APRES, 12)) [Art. 27]\n\n"
-                "⚠️ La note du module est PLAFONNEE a 12/20 apres rattrapage.\n\n"
-                "Reference : Articles 25, 26, 27 du Reglement Interieur ENSIAS"
+                "Regles de rattrapage (Art. 16 - Reglement ENSIAS 2021) :\n\n"
+                "Conditions :\n"
+                "  Un eleve n'ayant pas valide un module beneficie d'un controle de rattrapage.\n"
+                "  Un seul rattrapage par module et par annee universitaire.\n\n"
+                "Elements concernes :\n"
+                "  • Si note module < 12 : rattrapage dans les elements ou note < 12\n"
+                "  • Si note module >= 12 (mais module non valide car element < 5) :\n"
+                "    rattrapage uniquement dans les elements ou note < 5\n\n"
+                "Calcul apres rattrapage :\n"
+                "  • Note Element = Max(Note Examen, Note Rattrapage)\n"
+                "  • Note Module = Max(Note Module avant, Min(Note Module apres, 12))\n\n"
+                "Important : La note du module apres rattrapage est PLAFONNEE a 12/20.\n\n"
+                "Reference : Article 16, page 11"
             )
 
-        # --- RACHAT ---
-        if "rachat" in question:
+        # --- VALIDATION MODULE ---
+        if "validation" in question and "module" in question:
             return (
-                "Regles de rachat (Reglement ENSIAS) :\n\n"
-                "Eligibilite :\n"
-                "  • Note element entre 10.00 et 11.75/20 [Art. 30]\n"
-                "  • A moins de 2 points du seuil de validation (12)\n"
-                "  • Pas d'absence injustifiee sur l'element [Art. 31]\n\n"
-                "Conditions :\n"
-                "  • Augmentation max : +2 points [Art. 30]\n"
-                "  • Motif OBLIGATOIRE consigne au PV [Art. 30]\n"
-                "  • Decide par le jury sur proposition du RM [Art. 31]\n\n"
-                "Interdit :\n"
-                "  • Note verrouillee par Article 35 (absence injustifiee = 0/20)\n"
-                "  • Note < 10 (non eligible, doit aller au rattrapage)\n"
-                "  • Module deja cloture [Art. 42]\n\n"
-                "Reference : Articles 30, 31 du Reglement Interieur ENSIAS"
+                "Validation d'un module (Art. 14) :\n\n"
+                "Un module est valide si :\n"
+                "  1. Note module >= 12/20\n"
+                "  2. Aucune note d'element < 05/20 (note eliminatoire)\n\n"
+                "Si l'une de ces conditions n'est pas remplie, le module n'est PAS valide "
+                "et l'eleve doit passer le rattrapage (Art. 16).\n\n"
+                "Reference : Article 14, page 10"
+            )
+
+        # --- VALIDATION ANNEE ---
+        if "validation" in question and ("annee" in question or "1ere" in question or "2eme" in question):
+            return (
+                "Validation d'annee (Art. 19) :\n\n"
+                "4 conditions cumulatives :\n"
+                "  1. Moyenne generale d'annee >= 12/20\n"
+                "  2. Nombre de modules non valides <= [nb modules / 4]\n"
+                "  3. Aucune note de module < 05/20\n"
+                "  4. Aucune note de module fondamental < 08/20\n\n"
+                "Si non validee et moyenne >= 10/20 : annee de reserve possible (Art. 26).\n"
+                "Si moyenne < 10/20 : l'eleve n'a plus le droit de se reinscrire (Art. 29).\n\n"
+                "Reference : Article 19, page 12"
             )
 
         # --- ABSENCE ---
         if "absence" in question:
-            if "justifi" in question and "in" not in question:
+            if "examen" in question:
                 return (
-                    "Absence justifiee (Art. 36) :\n\n"
-                    "  • Certificat medical a presenter dans les 48h\n"
-                    "  • Valide par la scolarite\n"
-                    "  • L'etudiant beneficie d'un examen de remplacement\n\n"
-                    "Reference : Article 36 du Reglement Interieur ENSIAS"
+                    "Absences aux examens (Art. 39) :\n\n"
+                    "REGLE STRICTE : Les absences aux examens, MEME JUSTIFIEES par un certificat medical, "
+                    "ne sont en AUCUN CAS acceptees.\n\n"
+                    "Consequence : Note ZERO automatique a l'examen concerne.\n\n"
+                    "Cette regle est absolue et ne comporte aucune exception.\n\n"
+                    "Reference : Article 39, page 17"
                 )
             return (
-                "Absence injustifiee (Art. 35) :\n\n"
-                "  • Note d'examen forcee a 0/20 automatiquement\n"
-                "  • Note VERROUILLEE (aucune modification possible)\n"
-                "  • Rachat : IMPOSSIBLE\n"
-                "  • Deliberation favorable : IMPOSSIBLE\n"
-                "  • Statut : 'Defaillant' pour l'element concerne\n\n"
-                "Seul moyen de lever le blocage : certificat medical valide par la scolarite (Art. 36).\n\n"
-                "Reference : Article 35 du Reglement Interieur ENSIAS"
+                "Assiduite et absenteisme (Art. 38, 39, 40) :\n\n"
+                "Presence obligatoire (Art. 38) :\n"
+                "  • TD/TP : absences systematiquement relevees\n"
+                "  • Justification : certificat medical dans les 5 jours ouvrables\n"
+                "  • Absences repetees : le jury peut interdire le rattrapage\n\n"
+                "Absence examen (Art. 39) :\n"
+                "  • Toute absence = note ZERO (meme justifiee)\n\n"
+                "Sanctions absenteisme (Art. 40) :\n"
+                "  • < 15% : penalite -x/50\n"
+                "  • 15-25% : penalite -2x/50\n"
+                "  • 25-50% : penalite -3x/50\n"
+                "  • >= 50% : -3 points + interdiction rattrapage\n\n"
+                "Reference : Articles 38, 39, 40 — pages 16-17"
             )
 
-        # --- DELIBERATION / JURY ---
-        if "deliberation" in question or "jury" in question or "pv" in question:
+        # --- FRAUDE ---
+        if "fraude" in question or "plagiat" in question:
             return (
-                "Processus de deliberation (Reglement ENSIAS) :\n\n"
-                "Composition du jury [Art. 40] :\n"
-                "  • Coordonnateur pedagogique\n"
-                "  • Responsables de modules\n"
-                "  • Preside par le Chef de Filiere\n\n"
-                "Decisions possibles [Art. 41] :\n"
-                "  • Admis : module valide (note >= 12)\n"
-                "  • Non Admis : rattrapage requis (note < 12)\n"
-                "  • Ajourne : refait le module l'annee suivante\n\n"
-                "Apres signature du PV [Art. 42] :\n"
-                "  → Notes DEFINITIVES, aucune modification possible\n\n"
-                "Reference : Articles 40, 41, 42 du Reglement Interieur ENSIAS"
+                "Fraude et plagiat (Art. 47, 48) :\n\n"
+                "En cas de fraude/tentative/complicite :\n"
+                "  1. Exclusion immediate de la salle\n"
+                "  2. Note ZERO automatique a l'element de module\n"
+                "  3. Aucune autorisation de rattrapage pour cette note\n\n"
+                "Si fraude confirmee :\n"
+                "  • Note 0 DEFINITIVE\n"
+                "  • Module NON VALIDE (note eliminatoire)\n"
+                "  • Conseil de discipline possible\n\n"
+                "Le plagiat est sanctionne comme une fraude (Art. 48).\n\n"
+                "Reference : Articles 47-48, page 19"
             )
 
-        # --- VALIDATION ---
-        if "validation" in question or "valide" in question or "12" in question:
+        # --- DIPLOME ---
+        if "diplome" in question or "obtention" in question:
             return (
-                "Regles de validation (Reglement ENSIAS) :\n\n"
-                "Module valide [Art. 21] :\n"
-                "  • Note module >= 12/20\n"
-                "  • Note module = moyenne ponderee des elements [Art. 20]\n\n"
-                "Semestre valide [Art. 22] :\n"
-                "  • TOUS les modules du semestre doivent etre valides\n\n"
-                "Si non valide :\n"
-                "  • Rattrapage selon Art. 25 (elements < 12 ou < 5)\n"
-                "  • Note finale plafonnee a 12 apres rattrapage [Art. 27]\n\n"
-                "Reference : Articles 20, 21, 22 du Reglement Interieur ENSIAS"
+                "Obtention du diplome d'ingenieur (Art. 24) :\n\n"
+                "Conditions cumulatives :\n"
+                "  1. Valider les 2 premieres annees\n"
+                "  2. Valider le 5eme semestre\n"
+                "  3. Valider le PFE (note >= 12/20)\n"
+                "  4. Avoir effectue les 2 stages obligatoires\n\n"
+                "Moyenne globale ingenieur :\n"
+                "  = (Moy(A1) + Moy(A2) + Moy(S5) + Note(PFE)) / 4\n\n"
+                "Reference : Article 24, page 13"
             )
 
-        # --- REDOUBLEMENT / AJOURNE ---
-        if "redoublement" in question or "ajourne" in question or "refaire" in question:
+        # --- PFE ---
+        if "pfe" in question or "projet fin" in question:
             return (
-                "Redoublement / Ajournement (Reglement ENSIAS) :\n\n"
-                "Definition [Art. 45] :\n"
-                "  • Etudiant n'ayant pas valide tous les modules apres rattrapage\n"
-                "  • Doit REFAIRE les modules non valides l'annee suivante\n"
-                "  • Le redoublement n'est autorise qu'UNE SEULE FOIS par cycle\n\n"
-                "⚠️ Un etudiant ajourne ne refait PAS toute l'annee,\n"
-                "    seulement les modules qu'il n'a pas reussi.\n\n"
-                "Reference : Article 45 du Reglement Interieur ENSIAS"
+                "Projet de Fin d'Etudes (Art. 6, 23) :\n\n"
+                "Caracteristiques :\n"
+                "  • Duree : 1 semestre (S6)\n"
+                "  • En monome ou binome\n"
+                "  • De preference en entreprise\n"
+                "  • Sujet valide par le coordonnateur\n"
+                "  • Pre-soutenance de mi-parcours obligatoire\n\n"
+                "Validation : Note PFE >= 12/20 (Art. 23)\n\n"
+                "Le jury prononce l'acceptation du PFE, "
+                "ce qui ne signifie pas la reussite de la 3eme annee.\n\n"
+                "Reference : Articles 6 et 23, pages 8 et 12"
+            )
+
+        # --- STAGE ---
+        if "stage" in question:
+            return (
+                "Stages obligatoires (Art. 7, 30-33) :\n\n"
+                "2 stages obligatoires :\n"
+                "  1. Stage ouvrier (fin 1A) : 20-40 jours ouvrables\n"
+                "  2. Stage d'etudes (fin 2A) : 20-40 jours ouvrables, soutenance en anglais\n\n"
+                "Note stage 1A = 50% Organisme + 30% Rapport + 20% Soutenance\n"
+                "Note stage 2A = 40% Organisme + 30% Rapport + 30% Soutenance\n\n"
+                "Si une des 3 composantes manque : note 0 et stage non valide.\n\n"
+                "Reference : Articles 7, 30-33, pages 9, 14-15"
+            )
+
+        # --- ANNEE RESERVE ---
+        if "reserve" in question or "redoublement" in question:
+            return (
+                "Annee de reserve (Art. 26) :\n\n"
+                "Conditions :\n"
+                "  • Annee non validee MAIS moyenne >= 10/20\n"
+                "  • Accordee par le Directeur sur proposition du jury\n"
+                "  • UNE SEULE annee de reserve durant le cycle\n\n"
+                "Pendant l'annee de reserve :\n"
+                "  • Suivre obligatoirement les modules non valides\n"
+                "  • Possibilite de suivre des modules de l'annee suivante\n\n"
+                "Si l'annee de reserve n'est pas validee :\n"
+                "  L'eleve n'a plus le droit de se reinscrire a l'ENSIAS.\n\n"
+                "Reference : Article 26, page 13"
+            )
+
+        # --- FILIERE ---
+        if "filiere" in question or "2ia" in question or "gl" in question or "bia" in question:
+            return (
+                "Filieres de l'ENSIAS (Art. 3) :\n\n"
+                "9 filieres ingenieur :\n"
+                "  1. 2IA : Ingenierie de l'Intelligence Artificielle\n"
+                "  2. 2SCL : Smart Supply Chain and Logistics\n"
+                "  3. BI&A : Business Intelligence & Analytics\n"
+                "  4. GD : Genie de la Data\n"
+                "  5. GL : Genie Logiciel\n"
+                "  6. IDF : Ingenierie Digitale de la Finance\n"
+                "  7. IDSIT : Data Science and IoT (options IWA / IIMS)\n"
+                "  8. SSE : Systemes Intelligents (options Industrie 4.0 / Systemes autonomes)\n"
+                "  9. SSI : Securite des Systemes d'Information\n\n"
+                "Tronc commun en 1A. Specialisation progressive en 2A et 3A.\n"
+                "Mobilite interne possible (passerelles) apres validation de la 1A.\n\n"
+                "Reference : Article 3, page 6"
             )
 
         # --- NOTE / CALCUL ---
         if "note" in question or "calcul" in question or "moyenne" in question:
             return (
-                "Calcul des notes (Reglement ENSIAS) :\n\n"
-                "Note Element [Art. 19] :\n"
-                "  • Moyenne ponderee : Examen, TP, TD, Projet\n"
-                "  • Ponderation fixee par le coordonnateur\n\n"
-                "Note Module [Art. 20] :\n"
-                "  • Moyenne ponderee des notes d'elements\n"
-                "  • Coefficients fixes par le coordonnateur\n\n"
-                "Apres rattrapage [Art. 26, 27] :\n"
-                "  • Note Element = Max(Examen, Rattrapage)\n"
-                "  • Note Module = Max(Avant, Min(Apres, 12))\n\n"
-                "Reference : Articles 19, 20, 26, 27 du Reglement Interieur ENSIAS"
+                "Systeme de notation (Art. 12, 13, 18) :\n\n"
+                "Note element (Art. 12) :\n"
+                "  • Chaque controle note de 0 a 20\n"
+                "  • Note finale element = moyenne ponderee des controles\n\n"
+                "Note module (Art. 13) :\n"
+                "  • Moyenne ponderee des elements\n"
+                "  • Ponderation selon volumes horaires et nature des evaluations\n\n"
+                "Moyenne generale d'annee (Art. 18) :\n"
+                "  • Moyenne des notes de tous les modules de l'annee\n\n"
+                "Seuils :\n"
+                "  • Validation module : >= 12/20 (Art. 14)\n"
+                "  • Note eliminatoire element : < 05/20 (Art. 14)\n"
+                "  • Validation annee : 4 conditions (Art. 19)\n\n"
+                "Reference : Articles 12, 13, 14, 18, 19"
             )
 
         # --- DEFAUT ---
         return (
-            "Assistant RAG - Reglement Interieur ENSIAS\n\n"
+            "Assistant RAG - Reglement ENSIAS (Cycle Ingenieur 2021)\n\n"
             "Je peux vous renseigner sur :\n\n"
-            "📌 Validation : seuil 12/20, note module, semestre (Art. 21-22)\n"
-            "📌 Rattrapage : conditions, elements concernes, plafonnement (Art. 25-27)\n"
-            "📌 Rachat : eligibilite [10-12), max +2pts, motif obligatoire (Art. 30-31)\n"
-            "📌 Absences : injustifiee (0/20 bloque), justifiee (Art. 35-36)\n"
-            "📌 Deliberation : jury, decisions, PV definitif (Art. 40-42)\n"
-            "📌 Redoublement : conditions, 1 seule fois par cycle (Art. 45)\n\n"
-            "Posez votre question sur le reglement academique ENSIAS."
+            "  • Validation : module (Art. 14), annee (Art. 19), S5 (Art. 22), PFE (Art. 23)\n"
+            "  • Rattrapage : conditions, calcul, plafonnement a 12 (Art. 16)\n"
+            "  • Absences : aux examens = zero (Art. 39), penalites (Art. 40)\n"
+            "  • Diplome : conditions d'obtention, moyenne globale (Art. 24)\n"
+            "  • Filieres : liste des 9 filieres, tronc commun (Art. 3)\n"
+            "  • Stages : ouvrier et etudes, notation (Art. 7, 30-33)\n"
+            "  • PFE : validation, soutenance (Art. 6, 23)\n"
+            "  • Annee de reserve : conditions (Art. 26)\n"
+            "  • Fraude/plagiat : sanctions (Art. 47-48)\n\n"
+            "Posez votre question sur le reglement academique ENSIAS.\n"
+            "Source : Reglement des etudes Cycle Ingenieur, version 10 sept 2021."
         )
 
 

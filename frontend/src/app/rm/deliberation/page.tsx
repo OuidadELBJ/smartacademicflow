@@ -52,6 +52,34 @@ export default function DeliberationPage() {
     fetchData();
   }, []);
 
+  const generateMotifProposition = (cas: CasLimite, analysis: AIAnalysis): string => {
+    const ecart = cas.ecartValidation || (12 - (cas.noteElement || cas.noteExam));
+    const noteActuelle = cas.noteElement || cas.noteExam;
+    const elementsOK = analysis.elements.filter(e => e.statut === "OK");
+    const nbElementsTotal = analysis.elements.length;
+    
+    // Construire un motif contextuel et professionnel
+    let motif = `Rachat accorde pour l'element "${cas.elementIntitule}" (module "${cas.moduleIntitule}"). `;
+    
+    if (ecart <= 1) {
+      motif += `Note actuelle ${noteActuelle}/20, a seulement ${ecart.toFixed(2)} point(s) du seuil de validation. `;
+    } else {
+      motif += `Note actuelle ${noteActuelle}/20, ecart de ${ecart.toFixed(2)} points par rapport au seuil de 12. `;
+    }
+
+    if (elementsOK.length > 0) {
+      motif += `L'etudiant a valide ${elementsOK.length}/${nbElementsTotal} element(s) du module avec succes. `;
+    }
+
+    if (analysis.simulation.apres >= 12) {
+      motif += `Le rachat permettrait la validation du module (note simulee : ${analysis.simulation.apres}/20, plafonnee a 12). `;
+    }
+
+    motif += `Decision motivee conformement aux Art. 30-31 du reglement ENSIAS.`;
+    
+    return motif;
+  };
+
   const handleAnalyseIA = async (cas: CasLimite) => {
     setSelectedForAI(cas);
     setAiLoading(true);
@@ -389,6 +417,30 @@ export default function DeliberationPage() {
                   <p className="text-slate-400 text-[9px] mt-1">
                     Regle : Note Module = Max(Avant, Min(Apres, 12)) — Art. 27
                   </p>
+                </div>
+              )}
+
+              {/* Proposition de motif de rachat */}
+              {aiAnalysis.recommandation !== "VALIDER" && selectedForAI && !selectedForAI.isRachete && (
+                <div className="card border border-purple-100 bg-purple-50/20">
+                  <h4 className="text-slate-800 text-xs font-bold mb-2 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-purple-600" strokeWidth={2} />
+                    Proposition de motif (IA)
+                  </h4>
+                  <div className="p-2.5 rounded-lg bg-white border border-purple-100 text-[11px] text-slate-700 leading-relaxed mb-3">
+                    {generateMotifProposition(selectedForAI, aiAnalysis)}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setRachatModal(selectedForAI);
+                      setNouvelleNote("12");
+                      setMotif(generateMotifProposition(selectedForAI, aiAnalysis));
+                    }}
+                    className="w-full btn-primary text-[10px] py-2 justify-center"
+                  >
+                    <ArrowUpCircle size={12} strokeWidth={1.5} />
+                    Utiliser ce motif et racheter
+                  </button>
                 </div>
               )}
             </>

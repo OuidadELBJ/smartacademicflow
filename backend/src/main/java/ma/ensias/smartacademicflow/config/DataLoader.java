@@ -347,7 +347,7 @@ public class DataLoader implements CommandLineRunner {
 
     private void createModulesGL(Filiere f, User rm, List<User> ens) {
         Module m1 = moduleRepository.save(Module.builder().code("GL-S1-M1").intitule("Programmation Orientee Objet").semestre("S1").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m1).enseignant(ens.get(0)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(true).module(m1).enseignant(ens.get(0)).build());
         elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E2").intitule("Design Patterns").coefficient(1.5).hasTd(true).hasTp(false).hasProjet(true).module(m1).enseignant(ens.get(1)).build());
         Module m2 = moduleRepository.save(Module.builder().code("GL-S1-M2").intitule("Structures de Donnees & Algorithmes").semestre("S1").responsable(rm).filiere(f).build());
         elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E1").intitule("Algorithmes Avances").coefficient(2.0).hasTd(true).hasTp(false).hasProjet(false).module(m2).enseignant(ens.get(2)).build());

@@ -227,7 +227,7 @@ export default function SuiviPage() {
               const moduleElements = data.elementsProgress.filter(
                 (el) => el.moduleIntitule === mod.intitule
               );
-              const allComplete = moduleElements.length > 0 && moduleElements.every((el) => el.progression >= 100);
+              const allComplete = moduleElements.length > 0 && moduleElements.every((el) => el.progression >= 90);
               const avgProgression = moduleElements.length > 0
                 ? Math.round(moduleElements.reduce((sum, el) => sum + el.progression, 0) / moduleElements.length)
                 : 0;

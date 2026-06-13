@@ -5,7 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api";
 import {
   ClipboardList, CheckCircle, Clock, TrendingUp, BarChart3,
-  Users, AlertTriangle, Send, Bell, ArrowRight,
+  Users, AlertTriangle, Send, Bell, ArrowRight, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,19 +23,40 @@ interface DashboardData {
   elementsProgress: ElementProgress[];
 }
 
+interface ModuleInfo {
+  id: number;
+  code: string;
+  intitule: string;
+  semestre: string;
+  statut: string;
+}
+
 export default function SuiviPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [relanced, setRelanced] = useState<Set<number>>(new Set());
   const [relancing, setRelancing] = useState<number | null>(null);
+  const [transmitting, setTransmitting] = useState<number | null>(null);
+  const [transmitted, setTransmitted] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get("/rm/dashboard");
-        setData(res.data);
-      } catch (err) { console.error(err); }
+        const [dashRes, filieresRes] = await Promise.all([
+          api.get("/rm/dashboard"),
+          api.get("/rm/mes-modules"),
+        ]);
+        setData(dashRes.data);
+        setModules(filieresRes.data);
+      } catch (err) {
+        // Fallback: try dashboard only
+        try {
+          const res = await api.get("/rm/dashboard");
+          setData(res.data);
+        } catch (e) { console.error(e); }
+      }
       finally { setLoading(false); }
     };
     fetchData();
@@ -57,6 +78,20 @@ export default function SuiviPage() {
     finally { setRelancing(null); }
   };
 
+  const handleTransmettreCF = async (moduleId: number, intitule: string) => {
+    setTransmitting(moduleId);
+    try {
+      await api.post(`/rm/transmettre-cf/${moduleId}`);
+      setTransmitted(prev => { const s = new Set(Array.from(prev)); s.add(moduleId); return s; });
+      setToast(`Module "${intitule}" transmis au Chef de Filiere`);
+      setTimeout(() => setToast(""), 4000);
+    } catch (err: any) {
+      setToast(err.response?.data?.error || "Erreur lors de la transmission");
+      setTimeout(() => setToast(""), 4000);
+    }
+    finally { setTransmitting(null); }
+  };
+
   if (loading || !data) {
     return <DashboardLayout><div className="flex items-center justify-center h-64"><div className="animate-pulse text-slate-400">Chargement...</div></div></DashboardLayout>;
   }
@@ -64,6 +99,20 @@ export default function SuiviPage() {
   const enRetard = data.elementsProgress.filter(e => e.progression < 80);
   const circumference = 2 * Math.PI * 54;
   const progressOffset = circumference - (data.progressionGlobale / 100) * circumference;
+
+  // Group elements by module to determine which modules can be transmitted
+  const moduleMap = new Map<string, { elements: ElementProgress[]; allComplete: boolean }>();
+  for (const el of data.elementsProgress) {
+    const key = el.moduleIntitule;
+    if (!moduleMap.has(key)) {
+      moduleMap.set(key, { elements: [], allComplete: true });
+    }
+    const entry = moduleMap.get(key)!;
+    entry.elements.push(el);
+    if (el.progression < 100) {
+      entry.allComplete = false;
+    }
+  }
 
   return (
     <DashboardLayout>
@@ -80,14 +129,14 @@ export default function SuiviPage() {
           <ClipboardList size={20} className="text-orange-600" strokeWidth={1.5} />
         </div>
         <div>
-          <h1 className="text-slate-900 text-xl font-bold">Tableau de Bord</h1>
+          <h1 className="text-slate-900 text-xl font-bold">Suivi Avancement</h1>
           <p className="text-slate-500 text-xs">Responsable de Module - Vue d'ensemble</p>
         </div>
       </div>
 
       {/* Bento Grid */}
       <div className="grid grid-cols-12 gap-4 mb-6">
-        {/* Jauge circulaire - grande carte */}
+        {/* Jauge circulaire */}
         <div className="col-span-12 md:col-span-4 card flex flex-col items-center justify-center py-8">
           <div className="relative w-32 h-32">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
@@ -111,7 +160,7 @@ export default function SuiviPage() {
           <p className="text-slate-400 text-[10px]">{data.totalNotesSaisies} / {data.totalNotesAttendues} notes</p>
         </div>
 
-        {/* KPIs colonne droite */}
+        {/* KPIs */}
         <div className="col-span-12 md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="card py-5 text-center">
             <Users size={18} className="text-blue-600 mx-auto mb-1" strokeWidth={1.5} />
@@ -134,7 +183,7 @@ export default function SuiviPage() {
             <p className="text-slate-400 text-[10px]">Cas limites (8-10)</p>
           </div>
 
-          {/* Alertes recentes - occupe 4 colonnes */}
+          {/* Alertes */}
           <div className="col-span-2 lg:col-span-4 card p-4">
             <div className="flex items-center gap-2 mb-3">
               <Bell size={14} className="text-orange-600" strokeWidth={2} />
@@ -154,13 +203,7 @@ export default function SuiviPage() {
                   <ArrowRight size={11} className="text-amber-400 ml-auto" strokeWidth={2} />
                 </div>
               )}
-              {data.totalAjournes > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <Users size={12} className="text-slate-500 shrink-0" strokeWidth={2} />
-                  <span className="text-slate-600 text-[11px] font-medium">{data.totalAjournes} etudiant(s) ajourne(s) - note &lt;7/20</span>
-                </div>
-              )}
-              {enRetard.length === 0 && data.totalCasLimites === 0 && data.totalAjournes === 0 && (
+              {enRetard.length === 0 && data.totalCasLimites === 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
                   <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
                   <span className="text-emerald-700 text-[11px] font-medium">Tout est en ordre</span>
@@ -170,6 +213,77 @@ export default function SuiviPage() {
           </div>
         </div>
       </div>
+
+      {/* Transmission au CF — Modules prêts */}
+      {modules.length > 0 && (
+        <div className="card mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Upload size={16} className="text-blue-600" strokeWidth={2} />
+            <h2 className="text-slate-900 text-sm font-bold">Transmission au Chef de Filiere</h2>
+          </div>
+          <div className="space-y-2.5">
+            {modules.map((mod) => {
+              // Check if all elements of this module are complete
+              const moduleElements = data.elementsProgress.filter(
+                (el) => el.moduleIntitule === mod.intitule
+              );
+              const allComplete = moduleElements.length > 0 && moduleElements.every((el) => el.progression >= 100);
+              const avgProgression = moduleElements.length > 0
+                ? Math.round(moduleElements.reduce((sum, el) => sum + el.progression, 0) / moduleElements.length)
+                : 0;
+              const isTransmitted = transmitted.has(mod.id) || mod.statut === "TRANSMIS_CF" || mod.statut === "TRANSMIS_SCO" || mod.statut === "CLOTURE";
+
+              return (
+                <div key={mod.id} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                  <div className={cn(
+                    "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                    isTransmitted ? "bg-emerald-50" : allComplete ? "bg-blue-50" : "bg-slate-100"
+                  )}>
+                    {isTransmitted
+                      ? <CheckCircle size={16} className="text-emerald-600" strokeWidth={2} />
+                      : allComplete
+                      ? <Upload size={16} className="text-blue-600" strokeWidth={2} />
+                      : <Clock size={16} className="text-slate-400" strokeWidth={2} />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-800 text-sm font-medium">{mod.intitule}</p>
+                      <span className="text-slate-400 text-[10px] font-mono">{mod.code}</span>
+                    </div>
+                    <p className="text-slate-400 text-[10px]">{mod.semestre} | {moduleElements.length} element(s) | Progression: {avgProgression}%</p>
+                  </div>
+
+                  {isTransmitted ? (
+                    <span className="badge-success text-[10px] flex items-center gap-1">
+                      <CheckCircle size={10} strokeWidth={2} />
+                      Transmis
+                    </span>
+                  ) : allComplete ? (
+                    <button
+                      onClick={() => handleTransmettreCF(mod.id, mod.intitule)}
+                      disabled={transmitting === mod.id}
+                      className="btn-primary text-[11px] py-2 px-3"
+                    >
+                      {transmitting === mod.id ? "..." : (
+                        <>
+                          <Send size={12} strokeWidth={1.5} />
+                          Transmettre au CF
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="badge-warning text-[10px] flex items-center gap-1">
+                      <Clock size={10} strokeWidth={2} />
+                      Incomplet
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Avancement par element */}
       <div className="card">
@@ -201,7 +315,7 @@ export default function SuiviPage() {
                     background: el.progression >= 100 ? "#10b981" : el.progression < 50 ? "#ef4444" : "linear-gradient(135deg, #ee2927, #ff8848)",
                   }} />
                 </div>
-                <p className="text-slate-400 text-[9px] mt-0.5">{el.enseignantNom} | {el.semestre}</p>
+                <p className="text-slate-400 text-[9px] mt-0.5">{el.enseignantNom} | {el.moduleIntitule} | {el.semestre}</p>
               </div>
 
               <span className={cn("text-xs font-bold w-10 text-right",

@@ -105,7 +105,7 @@ public class DataLoader implements CommandLineRunner {
 
         // Scolarite + comptes demo
         userRepository.save(User.builder().email("scolarite@ensias.ma").password(pwd).nom("ADMIN").prenom("Scolarite").role(Role.SCO).isActive(true).build());
-        userRepository.save(User.builder().email("chef@ensias.ma").password(pwd).nom("ABOUTAJDINE").prenom("Driss").role(Role.CF).isActive(true).build());
+        User chefDemo = userRepository.save(User.builder().email("chef@ensias.ma").password(pwd).nom("ABOUTAJDINE").prenom("Driss").role(Role.CF).isActive(true).build());
 
         // =============================================
         // ETUDIANTS PAR FILIERE
@@ -299,11 +299,17 @@ public class DataLoader implements CommandLineRunner {
 
         List<Filiere> filieres = new ArrayList<>();
         for (int i = 0; i < filieresData.length; i++) {
-            filieres.add(filiereRepository.save(Filiere.builder()
+            Filiere filiere = filiereRepository.save(Filiere.builder()
                 .code(filieresData[i][0])
                 .intitule(filieresData[i][1])
                 .chefFiliere(chefs.get(i))
-                .build()));
+                .build());
+            filieres.add(filiere);
+            // Also link the GL filiere to the demo chef@ensias.ma account
+            if (filieresData[i][0].equals("GL")) {
+                filiere.setChefFiliere(chefDemo);
+                filiereRepository.save(filiere);
+            }
         }
 
         // =============================================

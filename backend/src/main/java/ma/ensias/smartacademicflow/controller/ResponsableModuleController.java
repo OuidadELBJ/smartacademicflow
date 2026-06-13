@@ -295,6 +295,28 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Liste des modules du RM avec leur statut (pour la page suivi/transmission)
+     */
+    @GetMapping("/mes-modules")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getMesModules(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Module mod : modules) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", mod.getId());
+            map.put("code", mod.getCode());
+            map.put("intitule", mod.getIntitule());
+            map.put("semestre", mod.getSemestre());
+            map.put("statut", mod.getStatut().name());
+            result.add(map);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Liste des etudiants des filieres associees aux modules du RM
      */
     @GetMapping("/etudiants")

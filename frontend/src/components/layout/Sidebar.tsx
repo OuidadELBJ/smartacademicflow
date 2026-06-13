@@ -48,6 +48,12 @@ const navItems: NavItem[] = [
     roles: ["ENS"],
   },
   {
+    label: "Mes Relances",
+    href: "/enseignant/relances",
+    icon: <Mail size={20} strokeWidth={1.5} />,
+    roles: ["ENS"],
+  },
+  {
     label: "Suivi Avancement",
     href: "/rm/suivi",
     icon: <ClipboardList size={20} strokeWidth={1.5} />,

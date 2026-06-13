@@ -30,6 +30,7 @@ public class ResponsableModuleController {
     private final ModuleRepository moduleRepository;
     private final ElementModuleRepository elementModuleRepository;
     private final NoteRepository noteRepository;
+    private final RelanceRepository relanceRepository;
 
     /**
      * Dashboard RM avec KPIs reels
@@ -233,7 +234,28 @@ public class ResponsableModuleController {
 
     @PostMapping("/relance")
     public ResponseEntity<Map<String, String>> relancerEnseignant(
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
+
+        // Persister la relance en base
+        User expediteur = userRepository.findByEmail(auth.getName()).orElseThrow();
+        User enseignant = userRepository.findByEmail(request.get("email")).orElse(null);
+
+        if (enseignant != null) {
+            Relance relance = Relance.builder()
+                    .enseignant(enseignant)
+                    .expediteur(expediteur)
+                    .moduleIntitule(request.get("moduleIntitule"))
+                    .elementIntitule(request.get("elementIntitule"))
+                    .message("La saisie des notes pour l'element \"" + request.get("elementIntitule")
+                            + "\" du module \"" + request.get("moduleIntitule") + "\" est en retard. "
+                            + "Merci de proceder a la saisie dans les plus brefs delais.")
+                    .lu(false)
+                    .build();
+            relanceRepository.save(relance);
+        }
+
+        // Envoyer l'email de relance
         emailService.sendRelanceEmail(
                 request.get("email"),
                 request.get("enseignantNom"),

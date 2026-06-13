@@ -188,7 +188,7 @@ export default function CertificatsPage() {
             )}
           </h1>
           <p className="text-slate-500 text-xs">
-            Gestion des absences et validation des justificatifs medicaux
+            Gestion des absences et validation des justificatifs
           </p>
         </div>
       </div>

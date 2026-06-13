@@ -32,6 +32,12 @@ interface CFDashboard {
   filieres: any[];
 }
 
+interface SCODashboard {
+  modulesRecus: number; modulesClotures: number;
+  totalModules: number; certificatsEnAttente: number;
+  totalAbsences: number;
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -46,6 +52,9 @@ export default function DashboardPage() {
   // CF state
   const [cfData, setCfData] = useState<CFDashboard | null>(null);
 
+  // SCO state
+  const [scoData, setScoData] = useState<SCODashboard | null>(null);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
@@ -55,6 +64,8 @@ export default function DashboardPage() {
       fetchRMData();
     } else if (user.role === "CF") {
       fetchCFData();
+    } else if (user.role === "SCO") {
+      fetchSCOData();
     } else {
       setLoading(false);
     }
@@ -97,6 +108,14 @@ export default function DashboardPage() {
     try {
       const res = await api.get("/cf/dashboard");
       setCfData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const fetchSCOData = async () => {
+    try {
+      const res = await api.get("/scolarite/dashboard");
+      setScoData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -239,6 +258,105 @@ export default function DashboardPage() {
                 )}>{el.progression}%</span>
               </div>
             ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ===================== SCO DASHBOARD =====================
+  if (user?.role === "SCO" && scoData) {
+    return (
+      <DashboardLayout>
+        <div className="mb-6">
+          <h1 className="text-slate-900 text-2xl font-bold">Bonjour, {user.prenom}</h1>
+          <p className="text-slate-500 text-sm mt-1">Tableau de bord - Service de Scolarite</p>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+          <div className="card-hover">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-slate-500 text-xs font-medium">Modules recus (CF)</p>
+                <p className="text-slate-900 text-2xl font-bold mt-1">{scoData.modulesRecus}</p>
+                <p className="text-slate-400 text-[11px] mt-1">Prets pour export Apogee</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                <Send size={20} className="text-orange-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+          <div className="card-hover">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-slate-500 text-xs font-medium">Modules clotures</p>
+                <p className="text-emerald-600 text-2xl font-bold mt-1">{scoData.modulesClotures}</p>
+                <p className="text-slate-400 text-[11px] mt-1">Exportes dans Apogee</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <CheckCircle size={20} className="text-emerald-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+          <div className="card-hover">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-slate-500 text-xs font-medium">Certificats en attente</p>
+                <p className="text-amber-600 text-2xl font-bold mt-1">{scoData.certificatsEnAttente}</p>
+                <p className="text-slate-400 text-[11px] mt-1">A traiter</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                <Clock size={20} className="text-amber-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+          <div className="card-hover">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-slate-500 text-xs font-medium">Total modules</p>
+                <p className="text-slate-900 text-2xl font-bold mt-1">{scoData.totalModules}</p>
+                <p className="text-slate-400 text-[11px] mt-1">Toutes filieres</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <BookOpen size={20} className="text-blue-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Alertes */}
+        <div className="card mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell size={14} className="text-orange-600" strokeWidth={2} />
+            <span className="text-slate-800 text-xs font-bold">Resume</span>
+          </div>
+          <div className="space-y-2">
+            {scoData.modulesRecus > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 border border-orange-100">
+                <Send size={12} className="text-orange-600 shrink-0" strokeWidth={2} />
+                <span className="text-orange-700 text-[11px] font-medium">{scoData.modulesRecus} module(s) recu(s) du CF - en attente d'export vers Apogee</span>
+                <ArrowRight size={11} className="text-orange-400 ml-auto" strokeWidth={2} />
+              </div>
+            )}
+            {scoData.certificatsEnAttente > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
+                <AlertTriangle size={12} className="text-amber-600 shrink-0" strokeWidth={2} />
+                <span className="text-amber-700 text-[11px] font-medium">{scoData.certificatsEnAttente} certificat(s) medical(aux) en attente de validation</span>
+              </div>
+            )}
+            {scoData.totalAbsences > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+                <Users size={12} className="text-slate-500 shrink-0" strokeWidth={2} />
+                <span className="text-slate-600 text-[11px] font-medium">{scoData.totalAbsences} absence(s) declaree(s) au total</span>
+              </div>
+            )}
+            {scoData.modulesRecus === 0 && scoData.certificatsEnAttente === 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
+                <span className="text-emerald-700 text-[11px] font-medium">Tout est a jour - aucune action requise</span>
+              </div>
+            )}
           </div>
         </div>
       </DashboardLayout>

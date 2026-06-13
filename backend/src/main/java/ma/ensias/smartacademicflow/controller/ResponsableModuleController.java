@@ -375,6 +375,36 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Proxy vers le service IA pour l'analyse d'un etudiant (deliberation)
+     */
+    @PostMapping("/analyse-ia")
+    public ResponseEntity<Map<String, Object>> analyseIA(@RequestBody Map<String, Object> request) {
+        String aiServiceUrl = "http://ai-service:8000";
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = org.springframework.web.reactive.function.client.WebClient.create(aiServiceUrl)
+                    .post()
+                    .uri("/api/rag/analyse-etudiant")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "resume", "Erreur service IA",
+                    "elements", java.util.Collections.emptyList(),
+                    "elements_rattrapage", java.util.Collections.emptyList(),
+                    "simulation", Map.of("avant", 0, "apres", 0, "elements_modifies", java.util.Collections.emptyList()),
+                    "recommandation", "RATTRAPAGE",
+                    "justification", "Service IA temporairement indisponible. Analyse basee sur les regles par defaut.",
+                    "confiance", 0.5
+            ));
+        }
+    }
+
+    /**
      * Liste des etudiants des filieres associees aux modules du RM
      */
     @GetMapping("/etudiants")

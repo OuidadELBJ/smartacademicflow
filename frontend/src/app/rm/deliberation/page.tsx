@@ -41,11 +41,19 @@ export default function DeliberationPage() {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Historique rachats
+  const [historiqueRachats, setHistoriqueRachats] = useState<any[]>([]);
+  const [showHistorique, setShowHistorique] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get("/rm/cas-limites");
-        setCasLimites(res.data);
+        const [casRes, histRes] = await Promise.all([
+          api.get("/rm/cas-limites"),
+          api.get("/rm/historique-rachats"),
+        ]);
+        setCasLimites(casRes.data);
+        setHistoriqueRachats(histRes.data);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
@@ -221,20 +229,74 @@ export default function DeliberationPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card py-4 text-center">
           <p className="text-amber-600 text-2xl font-bold">{casLimites.filter(c => !c.isRachete).length}</p>
           <p className="text-slate-500 text-xs">En attente</p>
         </div>
         <div className="card py-4 text-center">
-          <p className="text-emerald-600 text-2xl font-bold">{casLimites.filter(c => c.isRachete).length}</p>
+          <p className="text-emerald-600 text-2xl font-bold">{casLimites.filter(c => c.isRachete).length + historiqueRachats.length}</p>
           <p className="text-slate-500 text-xs">Rachetes</p>
         </div>
         <div className="card py-4 text-center">
           <p className="text-orange-600 text-2xl font-bold">{casLimites.length}</p>
           <p className="text-slate-500 text-xs">Total</p>
         </div>
+        <div className="card py-4 text-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => setShowHistorique(!showHistorique)}>
+          <p className="text-blue-600 text-2xl font-bold">{historiqueRachats.length}</p>
+          <p className="text-slate-500 text-xs">{showHistorique ? "Masquer PV" : "Voir PV"}</p>
+        </div>
       </div>
+
+      {/* Historique des rachats - PV de tracabilite */}
+      {showHistorique && historiqueRachats.length > 0 && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Scale size={16} className="text-blue-600" strokeWidth={2} />
+              <h2 className="text-slate-900 text-sm font-bold">Historique des Rachats (PV)</h2>
+            </div>
+            <span className="text-slate-400 text-[10px]">{historiqueRachats.length} rachat(s) consigne(s)</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="text-left text-slate-500 font-medium px-3 py-2">Etudiant</th>
+                  <th className="text-left text-slate-500 font-medium px-3 py-2">Element / Module</th>
+                  <th className="text-center text-slate-500 font-medium px-3 py-2">Avant</th>
+                  <th className="text-center text-slate-500 font-medium px-3 py-2">Apres</th>
+                  <th className="text-left text-slate-500 font-medium px-3 py-2">Motif (Art. 30)</th>
+                  <th className="text-right text-slate-500 font-medium px-3 py-2">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historiqueRachats.map((r: any, idx: number) => (
+                  <tr key={idx} className="border-b border-slate-100/50 hover:bg-emerald-50/20">
+                    <td className="px-3 py-2 font-medium text-slate-800">{r.etudiantNom} {r.etudiantPrenom}</td>
+                    <td className="px-3 py-2">
+                      <p className="text-slate-700">{r.elementIntitule}</p>
+                      <p className="text-slate-400 text-[9px]">{r.moduleIntitule}</p>
+                    </td>
+                    <td className="px-3 py-2 text-center text-red-500 font-medium">{r.noteAvantRachat != null ? r.noteAvantRachat.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-2 text-center text-emerald-600 font-bold">{r.noteApresRachat != null ? r.noteApresRachat.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-2 text-slate-600 max-w-[250px]">
+                      <p className="truncate" title={r.motifRachat}>{r.motifRachat || "—"}</p>
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-400">
+                      {r.dateRachat ? new Date(r.dateRachat).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-[10px] text-slate-400">
+            <Scale size={10} strokeWidth={2} />
+            <span>Ce tableau constitue le PV de deliberation — Art. 30 : tout rachat doit etre motive et consigne</span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Table cas limites */}

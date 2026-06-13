@@ -375,6 +375,51 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Historique des rachats effectues (pour tracabilite PV)
+     */
+    @GetMapping("/historique-rachats")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getHistoriqueRachats(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Module mod : modules) {
+            List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+            for (ElementModule el : elements) {
+                List<Note> notes = noteRepository.findByElementModuleId(el.getId());
+                for (Note n : notes) {
+                    if (n.isRachete()) {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("noteId", n.getId());
+                        map.put("etudiantNom", n.getEtudiant().getNom());
+                        map.put("etudiantPrenom", n.getEtudiant().getPrenom());
+                        map.put("elementIntitule", el.getIntitule());
+                        map.put("moduleIntitule", mod.getIntitule());
+                        map.put("noteAvantRachat", n.getNoteAvantRachat());
+                        map.put("noteApresRachat", n.getValeur());
+                        map.put("motifRachat", n.getMotifRachat());
+                        map.put("dateRachat", n.getUpdatedAt() != null ? n.getUpdatedAt().toString() : null);
+                        result.add(map);
+                    }
+                }
+            }
+        }
+
+        // Trier par date (plus recent d'abord)
+        result.sort((a, b) -> {
+            String da = (String) a.get("dateRachat");
+            String db = (String) b.get("dateRachat");
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Proxy vers le service IA pour l'analyse d'un etudiant (deliberation)
      */
     @PostMapping("/analyse-ia")

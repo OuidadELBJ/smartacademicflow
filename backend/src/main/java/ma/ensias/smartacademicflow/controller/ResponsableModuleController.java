@@ -24,6 +24,7 @@ public class ResponsableModuleController {
 
     private final DashboardService dashboardService;
     private final NoteService noteService;
+    private final NoteCalculService noteCalculService;
     private final DeliberationService deliberationService;
     private final EmailService emailService;
     private final UserRepository userRepository;
@@ -49,29 +50,33 @@ public class ResponsableModuleController {
         List<Map<String, Object>> elementsProgress = new ArrayList<>();
         int totalNotesSaisies = 0;
         int totalNotesAttendues = 0;
-        int totalAjournes = 0;
-        int totalRattrapage = 0;
-        int totalCasLimites = 0;
+        int totalNonAdmis = 0;      // etudiants dont note module < 12 (vont au rattrapage)
+        int totalRattrapage = 0;     // elements a rattraper (note element < 12 dans modules non valides)
+        int totalEligiblesRachat = 0; // notes element entre [10, 12) (rachat possible)
 
         for (Module mod : modules) {
             List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+
+            // Compter etudiants attendus (basee sur prefix filiere)
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+            long nbEtudiants = filiereEtudiants.size();
+
             for (ElementModule el : elements) {
                 List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
                 int nbNotes = notes.size();
 
-                // Compter etudiants attendus (basee sur prefix filiere)
-                String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
-                long nbEtudiants = userRepository.findAll().stream()
-                    .filter(u -> u.getEmail().startsWith(filiereCode + ".")).count();
-
                 totalNotesSaisies += nbNotes;
-                totalNotesAttendues += nbEtudiants;
+                totalNotesAttendues += (int) nbEtudiants;
 
-                // Compter ajournes (note < 10) et rattrapage (7 <= note < 10) et cas limites (8 <= note < 10)
+                // Compter notes eligibles au rachat : note element [10, 12)
                 for (Note n : notes) {
-                    if (n.getValeur() < 7) totalAjournes++;
-                    else if (n.getValeur() < 10) totalRattrapage++;
-                    if (n.getValeur() >= 8 && n.getValeur() < 10) totalCasLimites++;
+                    double noteElement = noteCalculService.calculerNoteElement(el.getId(), n.getEtudiant().getId());
+                    if (noteCalculService.isEligibleRachat(noteElement) && !n.isBlockedByArticle39() && !n.isRachete()) {
+                        totalEligiblesRachat++;
+                    }
                 }
 
                 double progression = nbEtudiants > 0 ? (double) nbNotes / nbEtudiants * 100 : 0;
@@ -88,6 +93,17 @@ public class ResponsableModuleController {
                 elMap.put("semestre", mod.getSemestre());
                 elementsProgress.add(elMap);
             }
+
+            // Compter etudiants non admis (note module < 12) et elements a rattraper
+            for (User etu : filiereEtudiants) {
+                double noteModule = noteCalculService.calculerNoteModule(mod.getId(), etu.getId());
+                if (noteModule > 0 && noteModule < 12.0) {
+                    totalNonAdmis++;
+                    // Compter elements a rattraper
+                    List<Map<String, Object>> elementsRatt = noteCalculService.getElementsARattraper(mod.getId(), etu.getId());
+                    totalRattrapage += elementsRatt.size();
+                }
+            }
         }
 
         double progressionGlobale = totalNotesAttendues > 0
@@ -100,16 +116,16 @@ public class ResponsableModuleController {
         result.put("totalNotesSaisies", totalNotesSaisies);
         result.put("totalNotesAttendues", totalNotesAttendues);
         result.put("progressionGlobale", progressionGlobale);
-        result.put("totalAjournes", totalAjournes);
+        result.put("totalNonAdmis", totalNonAdmis);
         result.put("totalRattrapage", totalRattrapage);
-        result.put("totalCasLimites", totalCasLimites);
+        result.put("totalEligiblesRachat", totalEligiblesRachat);
         result.put("elementsProgress", elementsProgress);
 
         return ResponseEntity.ok(result);
     }
 
     /**
-     * Liste des cas limites (etudiants entre 8 et 10 de moyenne exam)
+     * Liste des cas limites (notes element entre [10, 12) - eligibles au rachat)
      */
     @GetMapping("/cas-limites")
     @Transactional(readOnly = true)
@@ -121,28 +137,44 @@ public class ResponsableModuleController {
 
         for (Module mod : modules) {
             List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+
             for (ElementModule el : elements) {
-                List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
-                for (Note n : notes) {
-                    if (n.getValeur() >= 8 && n.getValeur() < 10 && !n.isBlockedByArticle39()) {
+                for (User etu : filiereEtudiants) {
+                    double noteElement = noteCalculService.calculerNoteElement(el.getId(), etu.getId());
+                    if (noteElement <= 0) continue;
+
+                    // Eligible au rachat : note element entre [10, 12)
+                    if (noteCalculService.isEligibleRachat(noteElement)) {
+                        // Chercher la note EXAM pour avoir le noteId
+                        Note noteExam = noteRepository.findByEtudiantIdAndElementModuleIdAndTypeEvaluation(
+                                etu.getId(), el.getId(), TypeEvaluation.EXAM).orElse(null);
+                        if (noteExam == null || noteExam.isBlockedByArticle39()) continue;
+
                         Map<String, Object> cas = new HashMap<>();
-                        cas.put("noteId", n.getId());
-                        cas.put("etudiantId", n.getEtudiant().getId());
-                        cas.put("etudiantNom", n.getEtudiant().getNom());
-                        cas.put("etudiantPrenom", n.getEtudiant().getPrenom());
+                        cas.put("noteId", noteExam.getId());
+                        cas.put("etudiantId", etu.getId());
+                        cas.put("etudiantNom", etu.getNom());
+                        cas.put("etudiantPrenom", etu.getPrenom());
                         cas.put("elementIntitule", el.getIntitule());
                         cas.put("moduleIntitule", mod.getIntitule());
-                        cas.put("noteExam", n.getValeur());
-                        cas.put("ecartValidation", Math.round((10 - n.getValeur()) * 100.0) / 100.0);
-                        cas.put("isRachete", n.isRachete());
-                        cas.put("motifRachat", n.getMotifRachat());
+                        cas.put("noteElement", noteElement);
+                        cas.put("noteExam", noteExam.getValeur());
+                        cas.put("ecartValidation", noteCalculService.ecartValidation(noteElement));
+                        cas.put("isRachete", noteExam.isRachete());
+                        cas.put("motifRachat", noteExam.getMotifRachat());
+                        cas.put("noteModule", noteCalculService.calculerNoteModule(mod.getId(), etu.getId()));
                         casLimites.add(cas);
                     }
                 }
             }
         }
 
-        // Trier par ecart le plus petit (plus proche de 10)
+        // Trier par ecart le plus petit (plus proche de 12)
         casLimites.sort((a, b) -> Double.compare((double) a.get("ecartValidation"), (double) b.get("ecartValidation")));
 
         return ResponseEntity.ok(casLimites);

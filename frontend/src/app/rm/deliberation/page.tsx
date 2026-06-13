@@ -75,7 +75,7 @@ export default function DeliberationPage() {
           </div>
           <div>
             <h1 className="text-slate-900 text-xl font-bold">Deliberation - Cas Limites</h1>
-            <p className="text-slate-500 text-xs">{casLimites.length} etudiant(s) entre 8 et 10/20 (eligibles au rachat)</p>
+            <p className="text-slate-500 text-xs">{casLimites.length} etudiant(s) entre 10 et 12/20 (eligibles au rachat)</p>
           </div>
         </div>
         <div className="relative">
@@ -171,7 +171,7 @@ export default function DeliberationPage() {
             </p>
 
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 mb-4">
-              <p className="text-amber-700 text-xs">Note actuelle : <strong>{rachatModal.noteExam}/20</strong> (ecart de {rachatModal.ecartValidation} pts)</p>
+              <p className="text-amber-700 text-xs">Note actuelle : <strong>{rachatModal.noteExam}/20</strong> (ecart de {rachatModal.ecartValidation} pts vers 12)</p>
             </div>
 
             <div className="space-y-3">

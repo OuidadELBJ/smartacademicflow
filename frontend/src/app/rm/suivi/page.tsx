@@ -18,8 +18,8 @@ interface ElementProgress {
 interface DashboardData {
   totalModules: number; modulesEnCours: number; modulesClotures: number;
   totalNotesSaisies: number; totalNotesAttendues: number;
-  progressionGlobale: number; totalAjournes: number;
-  totalRattrapage: number; totalCasLimites: number;
+  progressionGlobale: number; totalNonAdmis: number;
+  totalRattrapage: number; totalEligiblesRachat: number;
   elementsProgress: ElementProgress[];
 }
 
@@ -169,18 +169,18 @@ export default function SuiviPage() {
           </div>
           <div className="card py-5 text-center">
             <AlertTriangle size={18} className="text-red-500 mx-auto mb-1" strokeWidth={1.5} />
-            <p className="text-red-600 text-2xl font-bold">{data.totalAjournes}</p>
-            <p className="text-slate-400 text-[10px]">Ajournes (&lt;7/20)</p>
+            <p className="text-red-600 text-2xl font-bold">{data.totalNonAdmis}</p>
+            <p className="text-slate-400 text-[10px]">Non admis (module&lt;12)</p>
           </div>
           <div className="card py-5 text-center">
             <Clock size={18} className="text-amber-600 mx-auto mb-1" strokeWidth={1.5} />
             <p className="text-amber-600 text-2xl font-bold">{data.totalRattrapage}</p>
-            <p className="text-slate-400 text-[10px]">Rattrapage (7-10)</p>
+            <p className="text-slate-400 text-[10px]">Elements a rattraper</p>
           </div>
           <div className="card py-5 text-center">
             <TrendingUp size={18} className="text-orange-600 mx-auto mb-1" strokeWidth={1.5} />
-            <p className="text-orange-600 text-2xl font-bold">{data.totalCasLimites}</p>
-            <p className="text-slate-400 text-[10px]">Cas limites (8-10)</p>
+            <p className="text-orange-600 text-2xl font-bold">{data.totalEligiblesRachat}</p>
+            <p className="text-slate-400 text-[10px]">Eligibles rachat (10-12)</p>
           </div>
 
           {/* Alertes */}
@@ -196,14 +196,14 @@ export default function SuiviPage() {
                   <span className="text-red-700 text-[11px] font-medium">{enRetard.length} enseignant(s) en retard de saisie (&lt;80%)</span>
                 </div>
               )}
-              {data.totalCasLimites > 0 && (
+              {data.totalEligiblesRachat > 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
                   <Clock size={12} className="text-amber-600 shrink-0" strokeWidth={2} />
-                  <span className="text-amber-700 text-[11px] font-medium">{data.totalCasLimites} etudiant(s) en cas limite - eligible(s) au rachat</span>
+                  <span className="text-amber-700 text-[11px] font-medium">{data.totalEligiblesRachat} etudiant(s) eligible(s) au rachat (note [10-12))</span>
                   <ArrowRight size={11} className="text-amber-400 ml-auto" strokeWidth={2} />
                 </div>
               )}
-              {enRetard.length === 0 && data.totalCasLimites === 0 && (
+              {enRetard.length === 0 && data.totalEligiblesRachat === 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
                   <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
                   <span className="text-emerald-700 text-[11px] font-medium">Tout est en ordre</span>

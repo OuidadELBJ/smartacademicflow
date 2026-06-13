@@ -18,8 +18,8 @@ interface ElementData {
 interface RMDashboard {
   totalModules: number; modulesEnCours: number; modulesClotures: number;
   totalNotesSaisies: number; totalNotesAttendues: number;
-  progressionGlobale: number; totalAjournes: number;
-  totalRattrapage: number; totalCasLimites: number;
+  progressionGlobale: number; totalNonAdmis: number;
+  totalRattrapage: number; totalEligiblesRachat: number;
   elementsProgress: any[];
 }
 
@@ -172,18 +172,18 @@ export default function DashboardPage() {
             </div>
             <div className="card py-5 text-center">
               <AlertTriangle size={18} className="text-red-500 mx-auto mb-1" strokeWidth={1.5} />
-              <p className="text-red-600 text-2xl font-bold">{rmData.totalAjournes}</p>
-              <p className="text-slate-400 text-[10px]">Ajournes (&lt;7/20)</p>
+              <p className="text-red-600 text-2xl font-bold">{rmData.totalNonAdmis}</p>
+              <p className="text-slate-400 text-[10px]">Non admis (module&lt;12)</p>
             </div>
             <div className="card py-5 text-center">
               <Clock size={18} className="text-amber-600 mx-auto mb-1" strokeWidth={1.5} />
               <p className="text-amber-600 text-2xl font-bold">{rmData.totalRattrapage}</p>
-              <p className="text-slate-400 text-[10px]">Rattrapage (7-10)</p>
+              <p className="text-slate-400 text-[10px]">Elements a rattraper</p>
             </div>
             <div className="card py-5 text-center">
               <TrendingUp size={18} className="text-orange-600 mx-auto mb-1" strokeWidth={1.5} />
-              <p className="text-orange-600 text-2xl font-bold">{rmData.totalCasLimites}</p>
-              <p className="text-slate-400 text-[10px]">Cas limites (8-10)</p>
+              <p className="text-orange-600 text-2xl font-bold">{rmData.totalEligiblesRachat}</p>
+              <p className="text-slate-400 text-[10px]">Eligibles rachat (10-12)</p>
             </div>
 
             {/* Alertes */}
@@ -199,20 +199,20 @@ export default function DashboardPage() {
                     <span className="text-red-700 text-[11px] font-medium">{enRetard.length} enseignant(s) en retard de saisie</span>
                   </div>
                 )}
-                {rmData.totalCasLimites > 0 && (
+                {rmData.totalEligiblesRachat > 0 && (
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
                     <Clock size={12} className="text-amber-600 shrink-0" strokeWidth={2} />
-                    <span className="text-amber-700 text-[11px] font-medium">{rmData.totalCasLimites} etudiant(s) eligible(s) au rachat</span>
+                    <span className="text-amber-700 text-[11px] font-medium">{rmData.totalEligiblesRachat} etudiant(s) eligible(s) au rachat (note [10-12))</span>
                     <ArrowRight size={11} className="text-amber-400 ml-auto" strokeWidth={2} />
                   </div>
                 )}
-                {rmData.totalAjournes > 0 && (
+                {rmData.totalNonAdmis > 0 && (
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
                     <Users size={12} className="text-slate-500 shrink-0" strokeWidth={2} />
-                    <span className="text-slate-600 text-[11px] font-medium">{rmData.totalAjournes} etudiant(s) ajourne(s)</span>
+                    <span className="text-slate-600 text-[11px] font-medium">{rmData.totalNonAdmis} etudiant(s) non admis (module &lt;12) - rattrapage</span>
                   </div>
                 )}
-                {enRetard.length === 0 && rmData.totalCasLimites === 0 && rmData.totalAjournes === 0 && (
+                {enRetard.length === 0 && rmData.totalEligiblesRachat === 0 && rmData.totalNonAdmis === 0 && (
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
                     <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
                     <span className="text-emerald-700 text-[11px] font-medium">Tout est en ordre</span>

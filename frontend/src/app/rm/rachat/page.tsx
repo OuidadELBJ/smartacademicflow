@@ -94,7 +94,7 @@ export default function RachatPage() {
         {/* Left - Liste des notes */}
         <div className="lg:col-span-2 card p-0 overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-slate-700 text-xs font-medium">Notes eligibles (8-10/20)</span>
+            <span className="text-slate-700 text-xs font-medium">Notes eligibles au rachat (10-12/20)</span>
             <span className="text-slate-400 text-[10px]">{casLimites.length} total</span>
           </div>
           <div className="max-h-[550px] overflow-y-auto divide-y divide-slate-100">
@@ -194,13 +194,13 @@ export default function RachatPage() {
                   <input
                     type="number"
                     min={selectedNote.noteExam}
-                    max={Math.min(selectedNote.noteExam + 2, 20)}
+                    max={Math.min(selectedNote.noteExam + 2, 12)}
                     step="0.25"
                     value={nouvelleNote}
                     onChange={(e) => setNouvelleNote(e.target.value)}
                     className="input-field text-sm"
                   />
-                  <p className="text-slate-400 text-[9px] mt-1">Max : {Math.min(selectedNote.noteExam + 2, 20).toFixed(2)} (limite +2 pts)</p>
+                  <p className="text-slate-400 text-[9px] mt-1">Max : {Math.min(selectedNote.noteExam + 2, 12).toFixed(2)} (limite +2 pts, Art.36)</p>
                 </div>
                 <div>
                   <label className="text-slate-600 text-xs font-medium mb-1 block">Motif (obligatoire)</label>

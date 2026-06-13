@@ -293,7 +293,7 @@ export default function DeliberationPage() {
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-[10px] text-slate-400">
             <Scale size={10} strokeWidth={2} />
-            <span>Ce tableau constitue le PV de deliberation — Art. 30 : tout rachat doit etre motive et consigne</span>
+            <span>Proces-verbal de deliberation</span>
           </div>
         </div>
       )}

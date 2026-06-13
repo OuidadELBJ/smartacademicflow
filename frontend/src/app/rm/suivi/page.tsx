@@ -85,9 +85,8 @@ export default function SuiviPage() {
       modulesTransmitted.push(mod);
     } else {
       const moduleElements = elementsProgress.filter(el => el.moduleIntitule === mod.intitule);
-      const avgProg = moduleElements.length > 0 ? moduleElements.reduce((s, e) => s + e.progression, 0) / moduleElements.length : 0;
-      // Un module est pret si sa progression moyenne >= 50%
-      if (avgProg >= 50) {
+      const allComplete = moduleElements.length > 0 && moduleElements.every(el => el.progression >= 100);
+      if (allComplete) {
         modulesReady.push(mod);
       } else {
         modulesInProgress.push(mod);

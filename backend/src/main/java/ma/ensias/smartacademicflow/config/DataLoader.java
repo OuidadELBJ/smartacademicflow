@@ -475,7 +475,8 @@ public class DataLoader implements CommandLineRunner {
         java.util.Random random = new java.util.Random(42);
 
         // Progressions variees a appliquer aux elements (en % d'etudiants remplis)
-        double[] progressions = {1.0, 0.92, 0.77, 0.50, 0.65, 0.88, 0.30, 0.95, 0.70, 0.83, 0.45, 0.60};
+        // Les 2 premiers elements de chaque filiere = 100% (pour que le 1er module soit pret a transmettre)
+        double[] progressions = {1.0, 1.0, 0.77, 0.50, 0.65, 0.88, 0.30, 0.95, 0.70, 0.83, 0.45, 0.60};
         int progIndex = 0;
 
         for (String prefix : filierePrefixes) {

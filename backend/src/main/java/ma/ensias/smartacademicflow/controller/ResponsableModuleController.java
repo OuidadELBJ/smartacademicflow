@@ -266,6 +266,35 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Transmettre les notes d'un module au Chef de Filiere
+     * Change le statut du module de EN_COURS vers TRANSMIS_CF
+     */
+    @PostMapping("/transmettre-cf/{moduleId}")
+    @Transactional
+    public ResponseEntity<Map<String, String>> transmettreAuCF(
+            @PathVariable Long moduleId, Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        // Verifier que le RM est bien le responsable de ce module
+        if (!module.getResponsable().getId().equals(rm.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Vous n'etes pas le responsable de ce module"));
+        }
+
+        // Verifier que le module est en cours
+        if (module.getStatut() != ModuleStatut.EN_COURS) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ce module a deja ete transmis (statut: " + module.getStatut().name() + ")"));
+        }
+
+        module.setStatut(ModuleStatut.TRANSMIS_CF);
+        module.setDateTransmissionCF(java.time.LocalDateTime.now());
+        moduleRepository.save(module);
+
+        return ResponseEntity.ok(Map.of("message", "Module \"" + module.getIntitule() + "\" transmis au Chef de Filiere avec succes"));
+    }
+
+    /**
      * Liste des etudiants des filieres associees aux modules du RM
      */
     @GetMapping("/etudiants")

@@ -90,6 +90,12 @@ const navItems: NavItem[] = [
     roles: ["CF"],
   },
   {
+    label: "Notes Recues",
+    href: "/cf/notes-recues",
+    icon: <Download size={20} strokeWidth={1.5} />,
+    roles: ["CF"],
+  },
+  {
     label: "Validation PV",
     href: "/cf/validation-pv",
     icon: <CheckCircle size={20} strokeWidth={1.5} />,

@@ -30,6 +30,12 @@ public class Module {
     @Builder.Default
     private ModuleStatut statut = ModuleStatut.EN_COURS;
 
+    @Column(name = "date_transmission_cf")
+    private java.time.LocalDateTime dateTransmissionCF;
+
+    @Column(name = "date_transmission_sco")
+    private java.time.LocalDateTime dateTransmissionSCO;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "responsable_id", nullable = false)
     private User responsable;

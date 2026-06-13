@@ -23,6 +23,15 @@ interface RMDashboard {
   elementsProgress: any[];
 }
 
+interface CFDashboard {
+  totalFilieres: number; totalModules: number;
+  modulesEnCours: number; modulesTransmisCF: number;
+  modulesTransmisSCO: number; modulesClotures: number;
+  totalNotesSaisies: number; totalNotesAttendues: number;
+  progressionGlobale: number; totalEtudiants: number;
+  filieres: any[];
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -34,6 +43,9 @@ export default function DashboardPage() {
   // RM state
   const [rmData, setRmData] = useState<RMDashboard | null>(null);
 
+  // CF state
+  const [cfData, setCfData] = useState<CFDashboard | null>(null);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
@@ -41,6 +53,8 @@ export default function DashboardPage() {
       fetchEnsData();
     } else if (user.role === "RM") {
       fetchRMData();
+    } else if (user.role === "CF") {
+      fetchCFData();
     } else {
       setLoading(false);
     }
@@ -75,6 +89,14 @@ export default function DashboardPage() {
     try {
       const res = await api.get("/rm/dashboard");
       setRmData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const fetchCFData = async () => {
+    try {
+      const res = await api.get("/cf/dashboard");
+      setCfData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -219,6 +241,168 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ===================== CF DASHBOARD =====================
+  if (user?.role === "CF" && cfData) {
+    const circumference = 2 * Math.PI * 54;
+    const progressOffset = circumference - (cfData.progressionGlobale / 100) * circumference;
+    const modulesRecus = cfData.modulesTransmisCF;
+    const modulesEnAttente = cfData.modulesEnCours;
+
+    return (
+      <DashboardLayout>
+        <div className="mb-6">
+          <h1 className="text-slate-900 text-2xl font-bold">Bonjour, {user.prenom}</h1>
+          <p className="text-slate-500 text-sm mt-1">Tableau de bord - Chef de Filiere</p>
+        </div>
+
+        {/* KPIs Grid */}
+        <div className="grid grid-cols-12 gap-4 mb-6">
+          {/* Jauge circulaire */}
+          <div className="col-span-12 md:col-span-4 card flex flex-col items-center justify-center py-8">
+            <div className="relative w-32 h-32">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" strokeWidth="10" />
+                <circle cx="60" cy="60" r="54" fill="none" stroke="url(#cfGaugeGrad)" strokeWidth="10"
+                  strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={progressOffset}
+                  className="transition-all duration-1000" />
+                <defs>
+                  <linearGradient id="cfGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#ee2927" />
+                    <stop offset="100%" stopColor="#ff8848" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold text-slate-900">{cfData.progressionGlobale}%</span>
+                <span className="text-[10px] text-slate-400">avancement</span>
+              </div>
+            </div>
+            <p className="text-slate-600 text-xs font-medium mt-3">Progression globale</p>
+            <p className="text-slate-400 text-[10px]">{cfData.totalNotesSaisies} / {cfData.totalNotesAttendues} notes</p>
+          </div>
+
+          {/* KPIs droite */}
+          <div className="col-span-12 md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="card py-5 text-center">
+              <BookOpen size={18} className="text-blue-600 mx-auto mb-1" strokeWidth={1.5} />
+              <p className="text-slate-900 text-2xl font-bold">{cfData.totalModules}</p>
+              <p className="text-slate-400 text-[10px]">Modules total</p>
+            </div>
+            <div className="card py-5 text-center">
+              <Clock size={18} className="text-amber-600 mx-auto mb-1" strokeWidth={1.5} />
+              <p className="text-amber-600 text-2xl font-bold">{modulesEnAttente}</p>
+              <p className="text-slate-400 text-[10px]">En attente (RM)</p>
+            </div>
+            <div className="card py-5 text-center">
+              <Send size={18} className="text-orange-600 mx-auto mb-1" strokeWidth={1.5} />
+              <p className="text-orange-600 text-2xl font-bold">{modulesRecus}</p>
+              <p className="text-slate-400 text-[10px]">Recus (a transmettre)</p>
+            </div>
+            <div className="card py-5 text-center">
+              <CheckCircle size={18} className="text-emerald-600 mx-auto mb-1" strokeWidth={1.5} />
+              <p className="text-emerald-600 text-2xl font-bold">{cfData.modulesTransmisSCO + cfData.modulesClotures}</p>
+              <p className="text-slate-400 text-[10px]">Transmis / Clotures</p>
+            </div>
+
+            {/* Stats supplementaires */}
+            <div className="col-span-2 lg:col-span-4 card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={14} className="text-orange-600" strokeWidth={2} />
+                <span className="text-slate-800 text-xs font-bold">Resume</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                  <Users size={12} className="text-blue-600 shrink-0" strokeWidth={2} />
+                  <span className="text-blue-700 text-[11px] font-medium">{cfData.totalEtudiants} etudiant(s) dans vos filieres</span>
+                </div>
+                {modulesRecus > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 border border-orange-100">
+                    <Send size={12} className="text-orange-600 shrink-0" strokeWidth={2} />
+                    <span className="text-orange-700 text-[11px] font-medium">{modulesRecus} module(s) en attente de transmission a la scolarite</span>
+                    <ArrowRight size={11} className="text-orange-400 ml-auto" strokeWidth={2} />
+                  </div>
+                )}
+                {modulesEnAttente > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
+                    <Clock size={12} className="text-amber-600 shrink-0" strokeWidth={2} />
+                    <span className="text-amber-700 text-[11px] font-medium">{modulesEnAttente} module(s) en cours de saisie par les RM</span>
+                  </div>
+                )}
+                {modulesRecus === 0 && modulesEnAttente === 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                    <CheckCircle size={12} className="text-emerald-600 shrink-0" strokeWidth={2} />
+                    <span className="text-emerald-700 text-[11px] font-medium">Tous les modules sont a jour</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modules par filiere */}
+        {cfData.filieres.map((filiere: any) => (
+          <div key={filiere.filiereId} className="card mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                  <BookOpen size={14} className="text-orange-600" strokeWidth={2} />
+                </div>
+                <div>
+                  <h2 className="text-slate-900 text-sm font-bold">{filiere.intitule} ({filiere.code})</h2>
+                  <p className="text-slate-400 text-[10px]">{filiere.totalModules} modules | {filiere.nbEtudiants} etudiants | Progression: {filiere.progression}%</p>
+                </div>
+              </div>
+              <div className="w-24">
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${filiere.progression}%`, background: filiere.progression >= 100 ? "#10b981" : "linear-gradient(135deg, #ee2927, #ff8848)" }} />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {filiere.modules.map((mod: any) => (
+                <div key={mod.moduleId} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                    mod.statut === "CLOTURE" || mod.statut === "TRANSMIS_SCO" ? "bg-emerald-50" :
+                    mod.statut === "TRANSMIS_CF" ? "bg-orange-50" : "bg-slate-100"
+                  )}>
+                    {mod.statut === "CLOTURE" || mod.statut === "TRANSMIS_SCO"
+                      ? <CheckCircle size={14} className="text-emerald-600" strokeWidth={2} />
+                      : mod.statut === "TRANSMIS_CF"
+                      ? <Send size={14} className="text-orange-600" strokeWidth={2} />
+                      : <Clock size={14} className="text-slate-400" strokeWidth={2} />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-slate-800 text-xs font-medium truncate">{mod.intitule}</p>
+                      <span className="text-slate-500 text-[10px] ml-2">{mod.notesSaisies}/{mod.notesAttendues} notes</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.min(mod.progression, 100)}%`,
+                        background: mod.progression >= 100 ? "#10b981" : mod.progression < 50 ? "#ef4444" : "linear-gradient(135deg, #ee2927, #ff8848)",
+                      }} />
+                    </div>
+                    <p className="text-slate-400 text-[9px] mt-0.5">RM: {mod.responsableNom} | {mod.semestre} | {mod.code}</p>
+                  </div>
+                  <div className="shrink-0">
+                    {mod.statut === "CLOTURE" && <span className="badge-success text-[9px]">Cloture</span>}
+                    {mod.statut === "TRANSMIS_SCO" && <span className="badge-success text-[9px]">Transmis SCO</span>}
+                    {mod.statut === "TRANSMIS_CF" && <span className="badge-info text-[9px]">Recu</span>}
+                    {mod.statut === "EN_COURS" && <span className="badge-warning text-[9px]">En cours</span>}
+                  </div>
+                  <span className={cn("text-xs font-bold w-10 text-right",
+                    mod.progression >= 100 ? "text-emerald-600" : mod.progression < 50 ? "text-red-500" : "text-orange-600"
+                  )}>{mod.progression}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </DashboardLayout>
     );
   }

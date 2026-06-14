@@ -59,6 +59,9 @@ export default function DashboardPage() {
   const [elementProgress, setElementProgress] = useState<any[]>([]);
   const [relancesCount, setRelancesCount] = useState(0);
 
+  // Filtre annee/semestre (shared across roles)
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
@@ -168,13 +171,39 @@ export default function DashboardPage() {
   if (user?.role === "RM" && rmData) {
     const circumference = 2 * Math.PI * 54;
     const progressOffset = circumference - (rmData.progressionGlobale / 100) * circumference;
-    const enRetard = rmData.elementsProgress.filter((e: any) => e.progression < 80);
+
+    const yearFilter = (semestre: string) => {
+      if (selectedYear === "all") return true;
+      if (selectedYear === "1A") return semestre === "S1" || semestre === "S2";
+      if (selectedYear === "2A") return semestre === "S3" || semestre === "S4";
+      if (selectedYear === "3A") return semestre === "S5" || semestre === "S6";
+      return true;
+    };
+    const filteredElements = rmData.elementsProgress.filter((e: any) => yearFilter(e.semestre));
+    const enRetard = filteredElements.filter((e: any) => e.progression < 80);
 
     return (
       <DashboardLayout>
         <div className="mb-6">
           <h1 className="text-slate-900 text-2xl font-bold">Bonjour, {user.prenom}</h1>
           <p className="text-slate-500 text-sm mt-1">Tableau de bord - Responsable de Module</p>
+        </div>
+
+        {/* Filtre Annee */}
+        <div className="flex gap-1 mb-4 p-1 bg-slate-100 rounded-xl w-fit">
+          {[
+            { value: "all", label: "Toutes" },
+            { value: "1A", label: "1A (S1-S2)" },
+            { value: "2A", label: "2A (S3-S4)" },
+            { value: "3A", label: "3A (S5-S6)" },
+          ].map(opt => (
+            <button key={opt.value} onClick={() => setSelectedYear(opt.value)}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                selectedYear === opt.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}>
+              {opt.label}
+            </button>
+          ))}
         </div>
 
         {/* Bento Grid */}
@@ -267,10 +296,10 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-slate-900 text-sm font-bold">Avancement saisie par element</h2>
-            <span className="text-slate-400 text-[10px]">{rmData.elementsProgress.length} element(s)</span>
+            <span className="text-slate-400 text-[10px]">{filteredElements.length} element(s)</span>
           </div>
           <div className="space-y-2.5">
-            {rmData.elementsProgress.map((el: any) => (
+            {filteredElements.map((el: any) => (
               <div key={el.elementId} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
                 <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                   el.progression >= 100 ? "bg-emerald-50" : el.progression < 50 ? "bg-red-50" : "bg-orange-50"
@@ -648,14 +677,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Filtre Annee ENS */}
+      <div className="flex gap-1 mb-4 p-1 bg-slate-100 rounded-xl w-fit">
+        {[
+          { value: "all", label: "Toutes" },
+          { value: "1A", label: "1A (S1-S2)" },
+          { value: "2A", label: "2A (S3-S4)" },
+          { value: "3A", label: "3A (S5-S6)" },
+        ].map(opt => (
+          <button key={opt.value} onClick={() => setSelectedYear(opt.value)}
+            className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+              selectedYear === opt.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Progression par element avec barres */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-slate-900 text-base font-bold">Progression par element</h2>
-          <span className="text-slate-400 text-[10px]">{elementProgress.length} element(s)</span>
+          <span className="text-slate-400 text-[10px]">{elementProgress.filter(el => {
+            if (selectedYear === "all") return true;
+            if (selectedYear === "1A") return el.semestre === "S1" || el.semestre === "S2";
+            if (selectedYear === "2A") return el.semestre === "S3" || el.semestre === "S4";
+            if (selectedYear === "3A") return el.semestre === "S5" || el.semestre === "S6";
+            return true;
+          }).length} element(s)</span>
         </div>
         <div className="space-y-3">
-          {elementProgress.map((el: any) => (
+          {elementProgress.filter(el => {
+            if (selectedYear === "all") return true;
+            if (selectedYear === "1A") return el.semestre === "S1" || el.semestre === "S2";
+            if (selectedYear === "2A") return el.semestre === "S3" || el.semestre === "S4";
+            if (selectedYear === "3A") return el.semestre === "S5" || el.semestre === "S6";
+            return true;
+          }).map((el: any) => (
             <div key={el.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
               <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
                 el.progression >= 100 ? "bg-emerald-50" : el.progression < 50 ? "bg-red-50" : "bg-orange-50"

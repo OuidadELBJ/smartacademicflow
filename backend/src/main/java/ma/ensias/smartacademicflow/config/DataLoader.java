@@ -4,6 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ma.ensias.smartacademicflow.domain.entity.*;
 import ma.ensias.smartacademicflow.domain.entity.Module;
+import ma.ensias.smartacademicflow.domain.enums.AbsenceType;
+import ma.ensias.smartacademicflow.domain.enums.JustificatifStatut;
+import ma.ensias.smartacademicflow.domain.enums.ModuleStatut;
 import ma.ensias.smartacademicflow.domain.enums.Role;
 import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import ma.ensias.smartacademicflow.repository.*;
@@ -11,6 +14,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +30,7 @@ public class DataLoader implements CommandLineRunner {
     private final ModuleRepository moduleRepository;
     private final ElementModuleRepository elementModuleRepository;
     private final NoteRepository noteRepository;
+    private final AbsenceRepository absenceRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -105,7 +111,7 @@ public class DataLoader implements CommandLineRunner {
 
         // Scolarite + comptes demo
         userRepository.save(User.builder().email("scolarite@ensias.ma").password(pwd).nom("ADMIN").prenom("Scolarite").role(Role.SCO).isActive(true).build());
-        userRepository.save(User.builder().email("chef@ensias.ma").password(pwd).nom("ABOUTAJDINE").prenom("Driss").role(Role.CF).isActive(true).build());
+        User chefDemo = userRepository.save(User.builder().email("chef@ensias.ma").password(pwd).nom("ABOUTAJDINE").prenom("Driss").role(Role.CF).isActive(true).build());
 
         // =============================================
         // ETUDIANTS PAR FILIERE
@@ -299,11 +305,17 @@ public class DataLoader implements CommandLineRunner {
 
         List<Filiere> filieres = new ArrayList<>();
         for (int i = 0; i < filieresData.length; i++) {
-            filieres.add(filiereRepository.save(Filiere.builder()
+            Filiere filiere = filiereRepository.save(Filiere.builder()
                 .code(filieresData[i][0])
                 .intitule(filieresData[i][1])
                 .chefFiliere(chefs.get(i))
-                .build()));
+                .build());
+            filieres.add(filiere);
+            // Also link the GL filiere to the demo chef@ensias.ma account
+            if (filieresData[i][0].equals("GL")) {
+                filiere.setChefFiliere(chefDemo);
+                filiereRepository.save(filiere);
+            }
         }
 
         // =============================================
@@ -323,9 +335,22 @@ public class DataLoader implements CommandLineRunner {
         log.info("Pre-remplissage des notes pour toutes les filieres...");
         prefillAllNotes();
 
+        // Pre-remplir des absences pour la demo scolarite
+        log.info("Creation des absences de demo...");
+        prefillAbsences(filieres);
+
+        // Transmettre quelques modules au CF et a la scolarite pour la demo
+        log.info("Transmission de modules pour la demo CF/SCO...");
+        prefillTransmissions(filieres);
+
+        // Pre-remplir des rachats pour la demo (tracabilite PV)
+        log.info("Creation de rachats de demo...");
+        prefillRachats();
+
         log.info("=== DONNEES ENSIAS INITIALISEES ===");
         log.info("Filieres: 9 | Enseignants: 12 | RM: 9 | CF: 9");
         log.info("Etudiants: 400+ | Notes pre-remplies (5 derniers/filiere libres pour demo)");
+        log.info("Absences: 15+ | Modules transmis CF/SCO pour demo scolarite");
         log.info("====================================");
     }
 
@@ -341,7 +366,7 @@ public class DataLoader implements CommandLineRunner {
 
     private void createModulesGL(Filiere f, User rm, List<User> ens) {
         Module m1 = moduleRepository.save(Module.builder().code("GL-S1-M1").intitule("Programmation Orientee Objet").semestre("S1").responsable(rm).filiere(f).build());
-        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(false).module(m1).enseignant(ens.get(0)).build());
+        elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E1").intitule("Java Avance").coefficient(2.0).hasTd(true).hasTp(true).hasProjet(true).module(m1).enseignant(ens.get(0)).build());
         elementModuleRepository.save(ElementModule.builder().code("GL-S1-M1-E2").intitule("Design Patterns").coefficient(1.5).hasTd(true).hasTp(false).hasProjet(true).module(m1).enseignant(ens.get(1)).build());
         Module m2 = moduleRepository.save(Module.builder().code("GL-S1-M2").intitule("Structures de Donnees & Algorithmes").semestre("S1").responsable(rm).filiere(f).build());
         elementModuleRepository.save(ElementModule.builder().code("GL-S1-M2-E1").intitule("Algorithmes Avances").coefficient(2.0).hasTd(true).hasTp(false).hasProjet(false).module(m2).enseignant(ens.get(2)).build());
@@ -444,23 +469,27 @@ public class DataLoader implements CommandLineRunner {
     }
 
     /**
-     * Pre-remplit des notes pour TOUS les etudiants de TOUTES les filieres.
-     * Laisse les 5 derniers de chaque filiere sans notes pour la demo.
+     * Pre-remplit des notes avec progression VARIABLE par element.
+     * Certains elements auront 100%, d'autres 50%, 77%, 30%, etc.
+     * Cela donne un dashboard RM realiste avec des progressions variees.
      */
     private void prefillAllNotes() {
         String[] filierePrefixes = {"gl", "2ia", "bia", "idf", "cscc", "sse", "d2s", "2scl"};
         List<ElementModule> allElements = elementModuleRepository.findAll();
         java.util.Random random = new java.util.Random(42);
 
+        // Progressions variees a appliquer aux elements (en % d'etudiants remplis)
+        // Les 2 premiers elements de chaque filiere = 100% (pour que le 1er module soit pret a transmettre)
+        double[] progressions = {1.0, 1.0, 0.77, 0.50, 0.65, 0.88, 0.30, 0.95, 0.70, 0.83, 0.45, 0.60};
+        int progIndex = 0;
+
         for (String prefix : filierePrefixes) {
-            // Recuperer etudiants de cette filiere
             List<User> filiereEtudiants = userRepository.findByRole(Role.ENS).stream()
                 .filter(u -> u.getEmail().startsWith(prefix + "."))
                 .collect(java.util.stream.Collectors.toList());
 
             if (filiereEtudiants.isEmpty()) continue;
 
-            // Trouver les elements de cette filiere
             String filiereCodeUpper = prefix.toUpperCase();
             if (prefix.equals("bia")) filiereCodeUpper = "BIA";
             if (prefix.equals("2ia")) filiereCodeUpper = "2IA";
@@ -477,13 +506,17 @@ public class DataLoader implements CommandLineRunner {
 
             if (filiereElements.isEmpty()) continue;
 
-            // Remplir les notes pour tous SAUF les 5 derniers
-            int limit = Math.max(0, filiereEtudiants.size() - 5);
+            for (ElementModule el : filiereElements) {
+                // Chaque element a une progression differente
+                double prog = progressions[progIndex % progressions.length];
+                progIndex++;
 
-            for (int i = 0; i < limit; i++) {
-                User etu = filiereEtudiants.get(i);
+                int limit = (int) Math.round(filiereEtudiants.size() * prog);
+                limit = Math.min(limit, filiereEtudiants.size());
 
-                for (ElementModule el : filiereElements) {
+                for (int i = 0; i < limit; i++) {
+                    User etu = filiereEtudiants.get(i);
+
                     // Note EXAM : entre 5 et 19, distribution realiste
                     double examNote = 5.0 + random.nextDouble() * 14.0;
                     examNote = Math.round(examNote * 4) / 4.0;
@@ -523,8 +556,148 @@ public class DataLoader implements CommandLineRunner {
                     }
                 }
             }
-            log.info("  {} : {}/{} etudiants pre-remplis ({} elements)",
-                prefix, limit, filiereEtudiants.size(), filiereElements.size());
+            log.info("  {} : {} etudiants, {} elements (progressions variees)",
+                prefix, filiereEtudiants.size(), filiereElements.size());
         }
+    }
+
+    /**
+     * Cree des absences de demo pour la page scolarite
+     */
+    private void prefillAbsences(List<Filiere> filieres) {
+        java.util.Random random = new java.util.Random(123);
+        List<ElementModule> allElements = elementModuleRepository.findAll();
+
+        String[] filierePrefixes = {"gl", "2ia", "bia", "cscc"};
+        LocalDate[] dates = {
+            LocalDate.of(2025, 1, 15), LocalDate.of(2025, 1, 20),
+            LocalDate.of(2025, 2, 3), LocalDate.of(2025, 2, 10),
+            LocalDate.of(2025, 2, 18), LocalDate.of(2025, 3, 5),
+            LocalDate.of(2025, 3, 12), LocalDate.of(2025, 3, 20),
+        };
+
+        int absCount = 0;
+        for (String prefix : filierePrefixes) {
+            List<User> etudiants = userRepository.findByRole(Role.ENS).stream()
+                .filter(u -> u.getEmail().startsWith(prefix + "."))
+                .collect(Collectors.toList());
+
+            if (etudiants.isEmpty()) continue;
+
+            String codePrefix = prefix.toUpperCase();
+            if (prefix.equals("2ia")) codePrefix = "2IA";
+            if (prefix.equals("bia")) codePrefix = "BIA";
+            if (prefix.equals("cscc")) codePrefix = "CSCC";
+
+            final String cp = codePrefix;
+            List<ElementModule> filiereElements = allElements.stream()
+                .filter(el -> el.getCode().startsWith(cp))
+                .collect(Collectors.toList());
+
+            if (filiereElements.isEmpty()) continue;
+
+            // Creer 3-5 absences par filiere
+            int nbAbsences = 3 + random.nextInt(3);
+            for (int i = 0; i < nbAbsences && i < etudiants.size(); i++) {
+                User etu = etudiants.get(i);
+                ElementModule el = filiereElements.get(random.nextInt(filiereElements.size()));
+                LocalDate date = dates[random.nextInt(dates.length)];
+
+                // Alterner entre justifiee/injustifiee et statuts
+                AbsenceType type = (i % 3 == 0) ? AbsenceType.JUSTIFIEE : AbsenceType.INJUSTIFIEE;
+                JustificatifStatut statut = JustificatifStatut.EN_ATTENTE;
+                if (i % 4 == 1) statut = JustificatifStatut.VALIDE;
+                if (i % 4 == 2) statut = JustificatifStatut.REJETE;
+
+                absenceRepository.save(Absence.builder()
+                    .etudiant(etu)
+                    .elementModule(el)
+                    .dateAbsence(date)
+                    .type(type)
+                    .justificatifStatut(statut)
+                    .build());
+                absCount++;
+            }
+        }
+        log.info("  {} absences creees", absCount);
+    }
+
+    /**
+     * Transmet quelques modules au CF et a la scolarite pour la demo
+     */
+    private void prefillTransmissions(List<Filiere> filieres) {
+        // Transmettre les 2 premiers modules de GL au CF
+        List<Module> glModules = moduleRepository.findByFiliereId(filieres.get(3).getId());
+        if (glModules.size() >= 3) {
+            // Module 1 -> transmis au CF
+            glModules.get(0).setStatut(ModuleStatut.TRANSMIS_CF);
+            glModules.get(0).setDateTransmissionCF(LocalDateTime.of(2025, 3, 15, 10, 30));
+            moduleRepository.save(glModules.get(0));
+
+            // Module 2 -> transmis a la scolarite
+            glModules.get(1).setStatut(ModuleStatut.TRANSMIS_SCO);
+            glModules.get(1).setDateTransmissionCF(LocalDateTime.of(2025, 3, 10, 14, 0));
+            glModules.get(1).setDateTransmissionSCO(LocalDateTime.of(2025, 3, 18, 9, 15));
+            moduleRepository.save(glModules.get(1));
+
+            // Module 3 -> cloture
+            glModules.get(2).setStatut(ModuleStatut.CLOTURE);
+            glModules.get(2).setDateTransmissionCF(LocalDateTime.of(2025, 3, 5, 11, 0));
+            glModules.get(2).setDateTransmissionSCO(LocalDateTime.of(2025, 3, 12, 16, 45));
+            moduleRepository.save(glModules.get(2));
+        }
+
+        // Transmettre 1 module de 2IA a la scolarite
+        List<Module> iaModules = moduleRepository.findByFiliereId(filieres.get(0).getId());
+        if (iaModules.size() >= 2) {
+            iaModules.get(0).setStatut(ModuleStatut.TRANSMIS_SCO);
+            iaModules.get(0).setDateTransmissionCF(LocalDateTime.of(2025, 3, 8, 9, 0));
+            iaModules.get(0).setDateTransmissionSCO(LocalDateTime.of(2025, 3, 20, 11, 30));
+            moduleRepository.save(iaModules.get(0));
+
+            iaModules.get(1).setStatut(ModuleStatut.TRANSMIS_CF);
+            iaModules.get(1).setDateTransmissionCF(LocalDateTime.of(2025, 3, 22, 14, 0));
+            moduleRepository.save(iaModules.get(1));
+        }
+
+        log.info("  Modules GL: 1 TRANSMIS_CF, 1 TRANSMIS_SCO, 1 CLOTURE");
+        log.info("  Modules 2IA: 1 TRANSMIS_SCO, 1 TRANSMIS_CF");
+    }
+
+    /**
+     * Pre-remplit quelques rachats pour la demo (tracabilite PV).
+     * Trouve des notes entre [10, 12) et les marque comme rachetees.
+     */
+    private void prefillRachats() {
+        List<ElementModule> allElements = elementModuleRepository.findAll();
+        int rachatCount = 0;
+
+        String[] motifs = {
+            "Etudiant assidu avec des resultats reguliers sur les autres elements. Ecart faible justifiant un rachat pour validation du module.",
+            "Performance globale satisfaisante. Le cas limite est du a une difficulte ponctuelle lors de l'examen. Rachat accorde pour permettre la validation.",
+            "Etudiant avec un profil equilibre. Note tres proche du seuil de validation. Rachat motive par la coherence du parcours academique.",
+            "Participation active en TD/TP. Difficulte a l'examen non representative du niveau reel. Rachat conforme Art. 30.",
+            "Progression constante observee au cours du semestre. Ecart minime par rapport au seuil. Rachat accorde sur recommandation du RM.",
+        };
+
+        // Chercher des notes EXAM entre [10, 12) dans les elements GL
+        for (ElementModule el : allElements) {
+            if (!el.getCode().startsWith("GL")) continue;
+            if (rachatCount >= 5) break;
+
+            List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
+            for (Note n : notes) {
+                if (rachatCount >= 5) break;
+                if (n.getValeur() >= 10.0 && n.getValeur() < 12.0 && !n.isBlockedByArticle39() && !n.isRachete()) {
+                    n.setNoteAvantRachat(n.getValeur());
+                    n.setValeur(12.0);
+                    n.setRachete(true);
+                    n.setMotifRachat(motifs[rachatCount % motifs.length]);
+                    noteRepository.save(n);
+                    rachatCount++;
+                }
+            }
+        }
+        log.info("  {} rachats de demo crees", rachatCount);
     }
 }

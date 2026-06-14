@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 
 class OCRAnalyzeRequest(BaseModel):
@@ -31,4 +31,35 @@ class RAGQueryRequest(BaseModel):
 class RAGQueryResponse(BaseModel):
     reponse: str
     sources: list[RAGSource]
+    confiance: float
+
+
+# --- Assistant RM - Analyse Etudiant ---
+
+class ElementAnalysis(BaseModel):
+    nom: str
+    note: float
+    statut: str  # "OK" | "RATTRAPAGE" | "BLOQUE"
+
+
+class SimulationRattrapage(BaseModel):
+    avant: float
+    apres: float
+    elements_modifies: List[str] = []
+
+
+class AnalyseEtudiantRequest(BaseModel):
+    etudiant_nom: str
+    etudiant_prenom: str
+    note_module: float
+    elements: List[dict]  # [{nom, note_exam, note_td, note_tp, note_projet, coefficient, is_blocked}]
+
+
+class AnalyseEtudiantResponse(BaseModel):
+    resume: str
+    elements: List[ElementAnalysis]
+    elements_rattrapage: List[str]
+    simulation: SimulationRattrapage
+    recommandation: str  # "VALIDER" | "RATTRAPAGE" | "REFUSER"
+    justification: str
     confiance: float

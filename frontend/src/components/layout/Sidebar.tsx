@@ -48,21 +48,27 @@ const navItems: NavItem[] = [
     roles: ["ENS"],
   },
   {
+    label: "Mes Relances",
+    href: "/enseignant/relances",
+    icon: <Mail size={20} strokeWidth={1.5} />,
+    roles: ["ENS"],
+  },
+  {
+    label: "Historique Notes",
+    href: "/enseignant/historique",
+    icon: <FileText size={20} strokeWidth={1.5} />,
+    roles: ["ENS"],
+  },
+  {
     label: "Suivi Avancement",
     href: "/rm/suivi",
     icon: <ClipboardList size={20} strokeWidth={1.5} />,
     roles: ["RM"],
   },
   {
-    label: "Deliberation",
+    label: "Deliberation & Rachat",
     href: "/rm/deliberation",
     icon: <Scale size={20} strokeWidth={1.5} />,
-    roles: ["RM"],
-  },
-  {
-    label: "Rachat de Notes",
-    href: "/rm/rachat",
-    icon: <FileText size={20} strokeWidth={1.5} />,
     roles: ["RM"],
   },
   {
@@ -72,7 +78,7 @@ const navItems: NavItem[] = [
     roles: ["RM"],
   },
   {
-    label: "Chatbot Juridique",
+    label: "Assistant IA",
     href: "/rm/chatbot",
     icon: <MessageSquare size={20} strokeWidth={1.5} />,
     roles: ["RM"],
@@ -81,6 +87,12 @@ const navItems: NavItem[] = [
     label: "Supervision Filiere",
     href: "/cf/supervision",
     icon: <Users size={20} strokeWidth={1.5} />,
+    roles: ["CF"],
+  },
+  {
+    label: "Notes Recues",
+    href: "/cf/notes-recues",
+    icon: <Download size={20} strokeWidth={1.5} />,
     roles: ["CF"],
   },
   {

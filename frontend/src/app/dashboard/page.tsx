@@ -55,6 +55,10 @@ export default function DashboardPage() {
   // SCO state
   const [scoData, setScoData] = useState<SCODashboard | null>(null);
 
+  // ENS extra state
+  const [elementProgress, setElementProgress] = useState<any[]>([]);
+  const [relancesCount, setRelancesCount] = useState(0);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
@@ -118,6 +122,42 @@ export default function DashboardPage() {
       setScoData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  // Load ENS progression details after elements are fetched
+  useEffect(() => {
+    if (user?.role === "ENS" && elements.length > 0 && !loading) {
+      loadEnsDetails();
+    }
+  }, [elements, loading]);
+
+  const loadEnsDetails = async () => {
+    try {
+      const progressData: any[] = [];
+      for (const el of elements) {
+        try {
+          const filierePrefix = el.filiereCode.toLowerCase().replace(/&/g, "").replace(/\s/g, "");
+          const [notesRes, etusRes] = await Promise.all([
+            api.get(`/enseignant/notes/element/${el.id}?type=EXAM`),
+            api.get(`/enseignant/etudiants?filiere=${encodeURIComponent(filierePrefix)}`),
+          ]);
+          const prog = etusRes.data.length > 0 ? Math.round((notesRes.data.length / etusRes.data.length) * 100) : 0;
+          progressData.push({
+            ...el,
+            notesSaisies: notesRes.data.length,
+            totalEtudiants: etusRes.data.length,
+            progression: prog,
+          });
+        } catch {
+          progressData.push({ ...el, notesSaisies: 0, totalEtudiants: 0, progression: 0 });
+        }
+      }
+      setElementProgress(progressData);
+      try {
+        const relRes = await api.get("/enseignant/relances/non-lues/count");
+        setRelancesCount(relRes.data.count || 0);
+      } catch {}
+    } catch {}
   };
 
   if (loading) {
@@ -527,47 +567,6 @@ export default function DashboardPage() {
 
   // ===================== ENS DASHBOARD =====================
   const modules = Array.from(new Set(elements.map(e => e.moduleIntitule)));
-  const [elementProgress, setElementProgress] = useState<any[]>([]);
-  const [modulesStatus, setModulesStatus] = useState<any[]>([]);
-  const [relancesCount, setRelancesCount] = useState(0);
-
-  useEffect(() => {
-    if (user?.role === "ENS" && elements.length > 0 && !loading) {
-      loadEnsDetails();
-    }
-  }, [elements, loading]);
-
-  const loadEnsDetails = async () => {
-    try {
-      // Load per-element progression
-      const progressData: any[] = [];
-      for (const el of elements) {
-        try {
-          const filierePrefix = el.filiereCode.toLowerCase().replace(/&/g, "").replace(/\s/g, "");
-          const [notesRes, etusRes] = await Promise.all([
-            api.get(`/enseignant/notes/element/${el.id}?type=EXAM`),
-            api.get(`/enseignant/etudiants?filiere=${encodeURIComponent(filierePrefix)}`),
-          ]);
-          const prog = etusRes.data.length > 0 ? Math.round((notesRes.data.length / etusRes.data.length) * 100) : 0;
-          progressData.push({
-            ...el,
-            notesSaisies: notesRes.data.length,
-            totalEtudiants: etusRes.data.length,
-            progression: prog,
-          });
-        } catch {
-          progressData.push({ ...el, notesSaisies: 0, totalEtudiants: 0, progression: 0 });
-        }
-      }
-      setElementProgress(progressData);
-
-      // Load relances count
-      try {
-        const relRes = await api.get("/enseignant/relances/non-lues/count");
-        setRelancesCount(relRes.data.count || 0);
-      } catch {}
-    } catch {}
-  };
 
   return (
     <DashboardLayout>

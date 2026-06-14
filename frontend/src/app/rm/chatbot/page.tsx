@@ -145,14 +145,7 @@ export default function ChatbotPage() {
           const ragRes = await api.get("/rm/rag-query", { params: { question: q } });
           const ragData = ragRes.data;
 
-          let response = ragData.reponse + "\n";
-          if (ragData.sources && ragData.sources.length > 0) {
-            response += "\n---\n📚 Sources :\n";
-            ragData.sources.forEach((s: any) => {
-              response += `• ${s.article}${s.page ? " (p." + s.page + ")" : ""}\n`;
-            });
-            response += `\n🎯 Confiance : ${Math.round(ragData.confiance * 100)}%`;
-          }
+          let response = ragData.reponse || "";
 
           setMessages(prev => [...prev, { role: "assistant", content: response, type: "text" }]);
         } catch {

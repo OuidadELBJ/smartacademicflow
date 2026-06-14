@@ -3,6 +3,7 @@ package ma.ensias.smartacademicflow.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.ensias.smartacademicflow.domain.entity.Absence;
+import ma.ensias.smartacademicflow.domain.entity.AuditLog;
 import ma.ensias.smartacademicflow.domain.entity.ElementModule;
 import ma.ensias.smartacademicflow.domain.entity.Relance;
 import ma.ensias.smartacademicflow.domain.entity.User;
@@ -11,6 +12,7 @@ import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import ma.ensias.smartacademicflow.dto.AbsenceRequest;
 import ma.ensias.smartacademicflow.dto.NoteDTO;
 import ma.ensias.smartacademicflow.dto.NoteSaisieRequest;
+import ma.ensias.smartacademicflow.repository.AuditLogRepository;
 import ma.ensias.smartacademicflow.repository.ElementModuleRepository;
 import ma.ensias.smartacademicflow.repository.RelanceRepository;
 import ma.ensias.smartacademicflow.repository.UserRepository;
@@ -34,6 +36,7 @@ public class EnseignantController {
     private final ElementModuleRepository elementModuleRepository;
     private final UserRepository userRepository;
     private final RelanceRepository relanceRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @GetMapping("/mes-elements")
     @Transactional(readOnly = true)
@@ -207,5 +210,43 @@ public class EnseignantController {
         User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
         long count = relanceRepository.countByEnseignantIdAndLuFalse(enseignant.getId());
         return ResponseEntity.ok(Map.of("count", count));
+    }
+
+    /**
+     * Historique des modifications de notes (audit trail) pour l'enseignant connecte
+     */
+    @GetMapping("/historique-notes")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getHistoriqueNotes(Authentication auth) {
+        User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<ElementModule> elements = elementModuleRepository.findByEnseignantId(enseignant.getId());
+
+        // Get all audit logs for notes of this enseignant's elements
+        List<AuditLog> allLogs = auditLogRepository.findByUserId(enseignant.getId());
+
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (AuditLog log : allLogs) {
+            if (!"Note".equals(log.getEntityType())) continue;
+
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", log.getId());
+            map.put("action", log.getAction());
+            map.put("ancienneValeur", log.getAncienneValeur());
+            map.put("nouvelleValeur", log.getNouvelleValeur());
+            map.put("motif", log.getMotif());
+            map.put("date", log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
+            result.add(map);
+        }
+
+        // Trier par date desc
+        result.sort((a, b) -> {
+            String da = (String) a.get("date");
+            String db = (String) b.get("date");
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
+
+        return ResponseEntity.ok(result);
     }
 }

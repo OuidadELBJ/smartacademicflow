@@ -54,6 +54,12 @@ const navItems: NavItem[] = [
     roles: ["ENS"],
   },
   {
+    label: "Historique Notes",
+    href: "/enseignant/historique",
+    icon: <FileText size={20} strokeWidth={1.5} />,
+    roles: ["ENS"],
+  },
+  {
     label: "Suivi Avancement",
     href: "/rm/suivi",
     icon: <ClipboardList size={20} strokeWidth={1.5} />,

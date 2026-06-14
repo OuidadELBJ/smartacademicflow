@@ -66,6 +66,12 @@ const navItems: NavItem[] = [
     roles: ["RM"],
   },
   {
+    label: "Etudiants & Rattrapage",
+    href: "/rm/etudiants",
+    icon: <Users size={20} strokeWidth={1.5} />,
+    roles: ["RM"],
+  },
+  {
     label: "Deliberation & Rachat",
     href: "/rm/deliberation",
     icon: <Scale size={20} strokeWidth={1.5} />,

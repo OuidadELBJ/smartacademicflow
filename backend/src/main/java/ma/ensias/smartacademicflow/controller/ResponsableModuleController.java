@@ -349,6 +349,122 @@ public class ResponsableModuleController {
     }
 
     /**
+     * Vue par module : liste des etudiants avec statut (ADMIS / RATTRAPAGE / BLOQUE)
+     */
+    @GetMapping("/module/{moduleId}/etudiants-statut")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getEtudiantsStatutModule(
+            @PathVariable Long moduleId, Authentication auth) {
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        String filiereCode = module.getFiliere().getCode().toLowerCase().replace("&", "");
+        List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> etudiants = new ArrayList<>();
+        int admisCount = 0, rattrapageCount = 0, bloqueCount = 0;
+
+        for (User etu : filiereEtudiants) {
+            double noteModule = noteCalculService.calculerNoteModule(moduleId, etu.getId());
+            if (noteModule <= 0) continue;
+
+            String statut;
+            List<String> elementsRattrapage = new ArrayList<>();
+            boolean hasBlocked = false;
+
+            List<ElementModule> elements = elementModuleRepository.findByModuleId(moduleId);
+            for (ElementModule el : elements) {
+                var noteOpt = noteRepository.findByEtudiantIdAndElementModuleIdAndTypeEvaluation(
+                        etu.getId(), el.getId(), TypeEvaluation.EXAM);
+                if (noteOpt.isPresent() && noteOpt.get().isBlockedByArticle39()) {
+                    hasBlocked = true;
+                }
+            }
+
+            if (hasBlocked) {
+                statut = "BLOQUE";
+                bloqueCount++;
+            } else if (noteModule >= 12.0) {
+                statut = "ADMIS";
+                admisCount++;
+            } else {
+                statut = "RATTRAPAGE";
+                rattrapageCount++;
+                List<Map<String, Object>> elemRatt = noteCalculService.getElementsARattraper(moduleId, etu.getId());
+                elementsRattrapage = elemRatt.stream()
+                        .map(e -> (String) e.get("elementIntitule"))
+                        .collect(Collectors.toList());
+            }
+
+            Map<String, Object> etuMap = new HashMap<>();
+            etuMap.put("etudiantId", etu.getId());
+            etuMap.put("nom", etu.getNom());
+            etuMap.put("prenom", etu.getPrenom());
+            etuMap.put("noteModule", noteModule);
+            etuMap.put("statut", statut);
+            etuMap.put("elementsRattrapage", elementsRattrapage);
+            etudiants.add(etuMap);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("moduleId", module.getId());
+        result.put("moduleIntitule", module.getIntitule());
+        result.put("moduleCode", module.getCode());
+        result.put("semestre", module.getSemestre());
+        result.put("totalEtudiants", etudiants.size());
+        result.put("admis", admisCount);
+        result.put("rattrapage", rattrapageCount);
+        result.put("bloques", bloqueCount);
+        result.put("etudiants", etudiants);
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Liste des etudiants en rattrapage pour TOUS les modules du RM
+     */
+    @GetMapping("/etudiants-rattrapage")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getEtudiantsRattrapage(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Module mod : modules) {
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                    .collect(Collectors.toList());
+
+            for (User etu : filiereEtudiants) {
+                double noteModule = noteCalculService.calculerNoteModule(mod.getId(), etu.getId());
+                if (noteModule <= 0 || noteModule >= 12.0) continue;
+
+                List<Map<String, Object>> elementsRatt = noteCalculService.getElementsARattraper(mod.getId(), etu.getId());
+                if (elementsRatt.isEmpty()) continue;
+
+                Map<String, Object> etuMap = new HashMap<>();
+                etuMap.put("etudiantId", etu.getId());
+                etuMap.put("nom", etu.getNom());
+                etuMap.put("prenom", etu.getPrenom());
+                etuMap.put("noteModule", noteModule);
+                etuMap.put("moduleIntitule", mod.getIntitule());
+                etuMap.put("moduleCode", mod.getCode());
+                etuMap.put("semestre", mod.getSemestre());
+                etuMap.put("elementsRattrapage", elementsRatt);
+                etuMap.put("nbElementsRattrapage", elementsRatt.size());
+                result.add(etuMap);
+            }
+        }
+
+        result.sort((a, b) -> Double.compare((double) a.get("noteModule"), (double) b.get("noteModule")));
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Proxy vers le service RAG pour les questions reglementaires
      */
     @GetMapping("/rag-query")

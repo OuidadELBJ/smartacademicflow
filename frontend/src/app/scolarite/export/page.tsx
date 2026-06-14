@@ -82,6 +82,17 @@ export default function ExportPage() {
     }
   };
 
+  const handleMarquerExporte = async (moduleId: number, intitule: string) => {
+    try {
+      await api.post(`/scolarite/marquer-exporte/${moduleId}`);
+      setModules(prev => prev.map(m => m.moduleId === moduleId ? { ...m, statut: "CLOTURE" } : m));
+      setSuccess(`Module "${intitule}" marque comme exporte et cloture`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError("Erreur lors du marquage");
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
     const date = new Date(dateStr);
@@ -184,6 +195,14 @@ export default function ExportPage() {
                 )}>
                   {mod.statut === "CLOTURE" ? "Exporte" : "A exporter"}
                 </span>
+                {mod.statut !== "CLOTURE" && (
+                  <button
+                    onClick={() => handleMarquerExporte(mod.moduleId, mod.intitule)}
+                    className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 font-medium"
+                  >
+                    Marquer exporte
+                  </button>
+                )}
               </div>
 
               {/* Elements */}

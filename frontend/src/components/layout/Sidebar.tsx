@@ -114,6 +114,12 @@ const navItems: NavItem[] = [
     roles: ["SCO"],
   },
   {
+    label: "Resultats Etudiants",
+    href: "/scolarite/resultats",
+    icon: <Users size={20} strokeWidth={1.5} />,
+    roles: ["SCO"],
+  },
+  {
     label: "Export Apogee",
     href: "/scolarite/export",
     icon: <Download size={20} strokeWidth={1.5} />,

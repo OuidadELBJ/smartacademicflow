@@ -68,6 +68,89 @@ public class ScolariteController {
     }
 
     /**
+     * Marquer un module comme exporte (passe en CLOTURE)
+     */
+    @PostMapping("/marquer-exporte/{moduleId}")
+    @Transactional
+    public ResponseEntity<Map<String, String>> marquerExporte(@PathVariable Long moduleId) {
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        module.setStatut(ModuleStatut.CLOTURE);
+        moduleRepository.save(module);
+
+        return ResponseEntity.ok(Map.of("message", "Module \"" + module.getIntitule() + "\" marque comme exporte et cloture"));
+    }
+
+    /**
+     * Liste des etudiants par filiere avec resultats globaux
+     */
+    @GetMapping("/etudiants-resultats")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getEtudiantsResultats(
+            @RequestParam(required = false) String filiere) {
+        List<User> allUsers = userRepository.findAll();
+
+        // Filtrer les etudiants (ceux dont l'email a un prefix filiere)
+        List<User> etudiants = allUsers.stream()
+                .filter(u -> u.getEmail().contains(".") && !u.getEmail().startsWith("enseignant")
+                        && !u.getEmail().startsWith("rm") && !u.getEmail().startsWith("cf")
+                        && !u.getEmail().startsWith("scolarite") && !u.getEmail().startsWith("chef")
+                        && !u.getEmail().startsWith("responsable"))
+                .filter(u -> filiere == null || filiere.isEmpty() || u.getEmail().startsWith(filiere.toLowerCase() + "."))
+                .collect(java.util.stream.Collectors.toList());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (User etu : etudiants) {
+            List<Note> notes = noteRepository.findByEtudiantId(etu.getId());
+            if (notes.isEmpty()) continue;
+
+            // Calculer moyenne globale
+            double sum = 0;
+            int count = 0;
+            int modulesValides = 0;
+            int modulesNonValides = 0;
+            boolean hasBlocked = false;
+
+            // Grouper par element
+            java.util.Set<Long> elements = notes.stream()
+                    .map(n -> n.getElementModule().getId())
+                    .collect(java.util.stream.Collectors.toSet());
+
+            for (Note n : notes) {
+                if (n.getTypeEvaluation() == ma.ensias.smartacademicflow.domain.enums.TypeEvaluation.EXAM) {
+                    sum += n.getValeur();
+                    count++;
+                    if (n.isBlockedByArticle39()) hasBlocked = true;
+                    if (n.getValeur() >= 12) modulesValides++;
+                    else modulesNonValides++;
+                }
+            }
+
+            double moyenne = count > 0 ? Math.round(sum / count * 100.0) / 100.0 : 0;
+            String statut = hasBlocked ? "BLOQUE" : moyenne >= 12 ? "ADMIS" : "NON_ADMIS";
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("etudiantId", etu.getId());
+            map.put("nom", etu.getNom());
+            map.put("prenom", etu.getPrenom());
+            map.put("email", etu.getEmail());
+            map.put("moyenne", moyenne);
+            map.put("statut", statut);
+            map.put("modulesValides", modulesValides);
+            map.put("modulesNonValides", modulesNonValides);
+            map.put("totalNotes", count);
+            result.add(map);
+        }
+
+        // Trier par nom
+        result.sort((a, b) -> ((String) a.get("nom")).compareTo((String) b.get("nom")));
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Appel au microservice IA pour analyser un certificat medical
      */
     @PostMapping("/certificats/analyse-ia")

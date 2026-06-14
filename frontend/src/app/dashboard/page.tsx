@@ -527,6 +527,47 @@ export default function DashboardPage() {
 
   // ===================== ENS DASHBOARD =====================
   const modules = Array.from(new Set(elements.map(e => e.moduleIntitule)));
+  const [elementProgress, setElementProgress] = useState<any[]>([]);
+  const [modulesStatus, setModulesStatus] = useState<any[]>([]);
+  const [relancesCount, setRelancesCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.role === "ENS" && elements.length > 0 && !loading) {
+      loadEnsDetails();
+    }
+  }, [elements, loading]);
+
+  const loadEnsDetails = async () => {
+    try {
+      // Load per-element progression
+      const progressData: any[] = [];
+      for (const el of elements) {
+        try {
+          const filierePrefix = el.filiereCode.toLowerCase().replace(/&/g, "").replace(/\s/g, "");
+          const [notesRes, etusRes] = await Promise.all([
+            api.get(`/enseignant/notes/element/${el.id}?type=EXAM`),
+            api.get(`/enseignant/etudiants?filiere=${encodeURIComponent(filierePrefix)}`),
+          ]);
+          const prog = etusRes.data.length > 0 ? Math.round((notesRes.data.length / etusRes.data.length) * 100) : 0;
+          progressData.push({
+            ...el,
+            notesSaisies: notesRes.data.length,
+            totalEtudiants: etusRes.data.length,
+            progression: prog,
+          });
+        } catch {
+          progressData.push({ ...el, notesSaisies: 0, totalEtudiants: 0, progression: 0 });
+        }
+      }
+      setElementProgress(progressData);
+
+      // Load relances count
+      try {
+        const relRes = await api.get("/enseignant/relances/non-lues/count");
+        setRelancesCount(relRes.data.count || 0);
+      } catch {}
+    } catch {}
+  };
 
   return (
     <DashboardLayout>
@@ -534,6 +575,28 @@ export default function DashboardPage() {
         <h1 className="text-slate-900 text-2xl font-bold">Bonjour, {user?.prenom || "Utilisateur"}</h1>
         <p className="text-slate-500 text-sm mt-1">Voici un apercu de votre activite academique</p>
       </div>
+
+      {/* Message felicitations si 100% */}
+      {ensStats.progression >= 100 && (
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <CheckCircle size={24} className="text-emerald-600" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-emerald-800 text-sm font-bold">Toutes les notes sont saisies !</p>
+            <p className="text-emerald-600 text-xs mt-0.5">Felicitations, vous avez complete la saisie de {ensStats.notesCount} notes pour vos {ensStats.totalElements} elements de module. Vos notes sont maintenant en attente de validation par le responsable de module.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Notification relances non lues */}
+      {relancesCount > 0 && (
+        <div className="mb-6 p-3 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-3">
+          <AlertTriangle size={16} className="text-amber-600" strokeWidth={1.5} />
+          <span className="text-amber-700 text-xs font-medium">{relancesCount} relance(s) non lue(s) de la part du responsable de module</span>
+          <a href="/enseignant/relances" className="ml-auto text-amber-600 text-xs font-medium hover:text-amber-700">Voir →</a>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <div className="card-hover">
@@ -586,30 +649,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-slate-900 text-base font-bold">Mes elements de module</h2>
-          <BarChart3 size={18} className="text-slate-400" strokeWidth={1.5} />
+      {/* Progression par element avec barres */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-slate-900 text-base font-bold">Progression par element</h2>
+          <span className="text-slate-400 text-[10px]">{elementProgress.length} element(s)</span>
         </div>
         <div className="space-y-3">
-          {elements.map((el) => (
-            <div key={el.id} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
-                <BookOpen size={16} className="text-orange-600" strokeWidth={1.5} />
+          {elementProgress.map((el: any) => (
+            <div key={el.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+              <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                el.progression >= 100 ? "bg-emerald-50" : el.progression < 50 ? "bg-red-50" : "bg-orange-50"
+              )}>
+                {el.progression >= 100
+                  ? <CheckCircle size={16} className="text-emerald-600" strokeWidth={2} />
+                  : <BarChart3 size={16} className={el.progression < 50 ? "text-red-500" : "text-orange-600"} strokeWidth={2} />
+                }
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-slate-800 text-sm font-medium">{el.intitule}</p>
-                <p className="text-slate-400 text-[11px]">{el.moduleIntitule} | {el.filiereCode} | {el.semestre}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-slate-800 text-sm font-medium truncate">{el.intitule}</p>
+                  <span className="text-slate-500 text-[10px]">{el.notesSaisies}/{el.totalEtudiants}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${Math.min(el.progression, 100)}%`,
+                    background: el.progression >= 100 ? "#10b981" : el.progression < 50 ? "#ef4444" : "linear-gradient(135deg, #ee2927, #ff8848)",
+                  }} />
+                </div>
+                <p className="text-slate-400 text-[10px] mt-1">{el.moduleIntitule} | {el.filiereCode} | {el.semestre}</p>
               </div>
-              <div className="flex gap-1">
-                <span className="badge-info text-[9px]">Exam</span>
-                {el.hasTd && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">TD</span>}
-                {el.hasTp && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">TP</span>}
-                {el.hasProjet && <span className="badge text-[9px] bg-slate-100 text-slate-500 border border-slate-200">Projet</span>}
+              <span className={cn("text-sm font-bold w-12 text-right",
+                el.progression >= 100 ? "text-emerald-600" : el.progression < 50 ? "text-red-500" : "text-orange-600"
+              )}>{el.progression}%</span>
+              <div className="flex gap-1 shrink-0">
+                <span className="badge-info text-[8px]">Exam</span>
+                {el.hasTd && <span className="text-[8px] px-1 py-0.5 rounded bg-slate-100 text-slate-400">TD</span>}
+                {el.hasTp && <span className="text-[8px] px-1 py-0.5 rounded bg-slate-100 text-slate-400">TP</span>}
+                {el.hasProjet && <span className="text-[8px] px-1 py-0.5 rounded bg-slate-100 text-slate-400">Proj</span>}
               </div>
             </div>
           ))}
-          {elements.length === 0 && <p className="text-slate-400 text-sm text-center py-6">Aucun element assigne</p>}
+          {elementProgress.length === 0 && elements.length > 0 && (
+            <div className="py-4 text-center text-slate-400 text-sm animate-pulse">Chargement progression...</div>
+          )}
         </div>
       </div>
     </DashboardLayout>

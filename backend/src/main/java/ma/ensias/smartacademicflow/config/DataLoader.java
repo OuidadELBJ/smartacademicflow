@@ -343,6 +343,10 @@ public class DataLoader implements CommandLineRunner {
         log.info("Transmission de modules pour la demo CF/SCO...");
         prefillTransmissions(filieres);
 
+        // Pre-remplir des rachats pour la demo (tracabilite PV)
+        log.info("Creation de rachats de demo...");
+        prefillRachats();
+
         log.info("=== DONNEES ENSIAS INITIALISEES ===");
         log.info("Filieres: 9 | Enseignants: 12 | RM: 9 | CF: 9");
         log.info("Etudiants: 400+ | Notes pre-remplies (5 derniers/filiere libres pour demo)");
@@ -658,5 +662,42 @@ public class DataLoader implements CommandLineRunner {
 
         log.info("  Modules GL: 1 TRANSMIS_CF, 1 TRANSMIS_SCO, 1 CLOTURE");
         log.info("  Modules 2IA: 1 TRANSMIS_SCO, 1 TRANSMIS_CF");
+    }
+
+    /**
+     * Pre-remplit quelques rachats pour la demo (tracabilite PV).
+     * Trouve des notes entre [10, 12) et les marque comme rachetees.
+     */
+    private void prefillRachats() {
+        List<ElementModule> allElements = elementModuleRepository.findAll();
+        int rachatCount = 0;
+
+        String[] motifs = {
+            "Etudiant assidu avec des resultats reguliers sur les autres elements. Ecart faible justifiant un rachat pour validation du module.",
+            "Performance globale satisfaisante. Le cas limite est du a une difficulte ponctuelle lors de l'examen. Rachat accorde pour permettre la validation.",
+            "Etudiant avec un profil equilibre. Note tres proche du seuil de validation. Rachat motive par la coherence du parcours academique.",
+            "Participation active en TD/TP. Difficulte a l'examen non representative du niveau reel. Rachat conforme Art. 30.",
+            "Progression constante observee au cours du semestre. Ecart minime par rapport au seuil. Rachat accorde sur recommandation du RM.",
+        };
+
+        // Chercher des notes EXAM entre [10, 12) dans les elements GL
+        for (ElementModule el : allElements) {
+            if (!el.getCode().startsWith("GL")) continue;
+            if (rachatCount >= 5) break;
+
+            List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
+            for (Note n : notes) {
+                if (rachatCount >= 5) break;
+                if (n.getValeur() >= 10.0 && n.getValeur() < 12.0 && !n.isBlockedByArticle39() && !n.isRachete()) {
+                    n.setNoteAvantRachat(n.getValeur());
+                    n.setValeur(12.0);
+                    n.setRachete(true);
+                    n.setMotifRachat(motifs[rachatCount % motifs.length]);
+                    noteRepository.save(n);
+                    rachatCount++;
+                }
+            }
+        }
+        log.info("  {} rachats de demo crees", rachatCount);
     }
 }

@@ -136,6 +136,11 @@ public class ResponsableModuleController {
         List<Map<String, Object>> casLimites = new ArrayList<>();
 
         for (Module mod : modules) {
+            // Exclure les modules clotures (rachat impossible apres cloture - Art. 42)
+            if (mod.getStatut() == ModuleStatut.CLOTURE || mod.getStatut() == ModuleStatut.TRANSMIS_SCO) {
+                continue;
+            }
+
             List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
 
             String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");

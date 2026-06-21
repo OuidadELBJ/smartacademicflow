@@ -98,15 +98,21 @@ export default function DeliberationPage() {
       const synRes = await api.get(`/rm/etudiant/${cas.etudiantId}/synthese`);
       const synthese = synRes.data;
 
-      // Build elements for the AI analysis
-      const elements = (synthese.elements || []).map((el: any) => ({
+      // Build elements for the AI analysis — ONLY elements of the same module
+      const moduleElements = (synthese.elements || []).filter(
+        (el: any) => el.moduleIntitule === cas.moduleIntitule
+      );
+      const elements = moduleElements.map((el: any) => ({
         nom: el.elementIntitule,
         note_element: el.moyenne,
         coefficient: 1.5,
         is_blocked: el.isBlockedByArticle39 || false,
       }));
 
-      const noteModule = synthese.moyenneGenerale || cas.noteModule || 0;
+      // Use the specific module note (not the overall average)
+      const noteModule = cas.noteModule || (moduleElements.length > 0
+        ? moduleElements.reduce((s: number, e: any) => s + e.moyenne, 0) / moduleElements.length
+        : 0);
 
       // Call AI service via backend proxy (more reliable)
       let aiResult: AIAnalysis;
@@ -144,11 +150,11 @@ export default function DeliberationPage() {
             simulation: { avant: noteModule, apres: Math.min(Math.max(noteModule, 12), 12), elements_modifies: elemRatt },
             recommandation: noteModule >= 12 ? "VALIDER" : elemRatt.length > 0 ? "RATTRAPAGE" : "REFUSER",
             justification: noteModule >= 12
-              ? `Module valide : ${noteModule.toFixed(2)}/20 >= 12 (Art. 21).`
+              ? `Module valide : ${noteModule.toFixed(2)}/20 >= 12. Aucune action requise.`
               : elemRatt.length > 0
-              ? `Module non valide (${noteModule.toFixed(2)}/20 < 12). Rattrapage dans : ${elemRatt.join(", ")} (Art. 25). Rachat possible si note element entre [10, 12) avec max +2pts (Art. 30).`
+              ? `Module non valide (${noteModule.toFixed(2)}/20 < 12). Rattrapage dans : ${elemRatt.join(", ")}. Rachat possible si note element entre [10, 12) avec max +2pts.`
               : `Module non valide. Aucun element eligible au rattrapage.`,
-            confiance: 0.80,
+            confiance: noteModule >= 12 ? 0.90 : 0.80,
           };
         }
       }

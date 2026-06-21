@@ -124,7 +124,7 @@ async def analyse_etudiant(request: AnalyseEtudiantRequest):
         if note_module >= 12:
             recommandation = "VALIDER"
             justification = (
-                f"Module valide : note {note_module}/20 >= 12/20 (Art. 21). "
+                f"Module valide : note {note_module}/20 >= 12/20. "
                 f"Aucune action requise."
             )
             confiance = 0.95

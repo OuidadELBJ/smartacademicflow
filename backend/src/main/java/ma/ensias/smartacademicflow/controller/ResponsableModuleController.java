@@ -24,12 +24,14 @@ public class ResponsableModuleController {
 
     private final DashboardService dashboardService;
     private final NoteService noteService;
+    private final NoteCalculService noteCalculService;
     private final DeliberationService deliberationService;
     private final EmailService emailService;
     private final UserRepository userRepository;
     private final ModuleRepository moduleRepository;
     private final ElementModuleRepository elementModuleRepository;
     private final NoteRepository noteRepository;
+    private final RelanceRepository relanceRepository;
 
     /**
      * Dashboard RM avec KPIs reels
@@ -48,29 +50,33 @@ public class ResponsableModuleController {
         List<Map<String, Object>> elementsProgress = new ArrayList<>();
         int totalNotesSaisies = 0;
         int totalNotesAttendues = 0;
-        int totalAjournes = 0;
-        int totalRattrapage = 0;
-        int totalCasLimites = 0;
+        int totalNonAdmis = 0;      // etudiants dont note module < 12 (vont au rattrapage)
+        int totalRattrapage = 0;     // elements a rattraper (note element < 12 dans modules non valides)
+        int totalEligiblesRachat = 0; // notes element entre [10, 12) (rachat possible)
 
         for (Module mod : modules) {
             List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+
+            // Compter etudiants attendus (basee sur prefix filiere)
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+            long nbEtudiants = filiereEtudiants.size();
+
             for (ElementModule el : elements) {
                 List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
                 int nbNotes = notes.size();
 
-                // Compter etudiants attendus (basee sur prefix filiere)
-                String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
-                long nbEtudiants = userRepository.findAll().stream()
-                    .filter(u -> u.getEmail().startsWith(filiereCode + ".")).count();
-
                 totalNotesSaisies += nbNotes;
-                totalNotesAttendues += nbEtudiants;
+                totalNotesAttendues += (int) nbEtudiants;
 
-                // Compter ajournes (note < 10) et rattrapage (7 <= note < 10) et cas limites (8 <= note < 10)
+                // Compter notes eligibles au rachat : note element [10, 12)
                 for (Note n : notes) {
-                    if (n.getValeur() < 7) totalAjournes++;
-                    else if (n.getValeur() < 10) totalRattrapage++;
-                    if (n.getValeur() >= 8 && n.getValeur() < 10) totalCasLimites++;
+                    double noteElement = noteCalculService.calculerNoteElement(el.getId(), n.getEtudiant().getId());
+                    if (noteCalculService.isEligibleRachat(noteElement) && !n.isBlockedByArticle39() && !n.isRachete()) {
+                        totalEligiblesRachat++;
+                    }
                 }
 
                 double progression = nbEtudiants > 0 ? (double) nbNotes / nbEtudiants * 100 : 0;
@@ -87,6 +93,17 @@ public class ResponsableModuleController {
                 elMap.put("semestre", mod.getSemestre());
                 elementsProgress.add(elMap);
             }
+
+            // Compter etudiants non admis (note module < 12) et elements a rattraper
+            for (User etu : filiereEtudiants) {
+                double noteModule = noteCalculService.calculerNoteModule(mod.getId(), etu.getId());
+                if (noteModule > 0 && noteModule < 12.0) {
+                    totalNonAdmis++;
+                    // Compter elements a rattraper
+                    List<Map<String, Object>> elementsRatt = noteCalculService.getElementsARattraper(mod.getId(), etu.getId());
+                    totalRattrapage += elementsRatt.size();
+                }
+            }
         }
 
         double progressionGlobale = totalNotesAttendues > 0
@@ -99,16 +116,16 @@ public class ResponsableModuleController {
         result.put("totalNotesSaisies", totalNotesSaisies);
         result.put("totalNotesAttendues", totalNotesAttendues);
         result.put("progressionGlobale", progressionGlobale);
-        result.put("totalAjournes", totalAjournes);
+        result.put("totalNonAdmis", totalNonAdmis);
         result.put("totalRattrapage", totalRattrapage);
-        result.put("totalCasLimites", totalCasLimites);
+        result.put("totalEligiblesRachat", totalEligiblesRachat);
         result.put("elementsProgress", elementsProgress);
 
         return ResponseEntity.ok(result);
     }
 
     /**
-     * Liste des cas limites (etudiants entre 8 et 10 de moyenne exam)
+     * Liste des cas limites (notes element entre [10, 12) - eligibles au rachat)
      */
     @GetMapping("/cas-limites")
     @Transactional(readOnly = true)
@@ -119,29 +136,50 @@ public class ResponsableModuleController {
         List<Map<String, Object>> casLimites = new ArrayList<>();
 
         for (Module mod : modules) {
+            // Exclure les modules clotures (rachat impossible apres cloture - Art. 42)
+            if (mod.getStatut() == ModuleStatut.CLOTURE || mod.getStatut() == ModuleStatut.TRANSMIS_SCO) {
+                continue;
+            }
+
             List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+
             for (ElementModule el : elements) {
-                List<Note> notes = noteRepository.findByElementModuleIdAndTypeEvaluation(el.getId(), TypeEvaluation.EXAM);
-                for (Note n : notes) {
-                    if (n.getValeur() >= 8 && n.getValeur() < 10 && !n.isBlockedByArticle39()) {
+                for (User etu : filiereEtudiants) {
+                    double noteElement = noteCalculService.calculerNoteElement(el.getId(), etu.getId());
+                    if (noteElement <= 0) continue;
+
+                    // Eligible au rachat : note element entre [10, 12)
+                    if (noteCalculService.isEligibleRachat(noteElement)) {
+                        // Chercher la note EXAM pour avoir le noteId
+                        Note noteExam = noteRepository.findByEtudiantIdAndElementModuleIdAndTypeEvaluation(
+                                etu.getId(), el.getId(), TypeEvaluation.EXAM).orElse(null);
+                        if (noteExam == null || noteExam.isBlockedByArticle39()) continue;
+
                         Map<String, Object> cas = new HashMap<>();
-                        cas.put("noteId", n.getId());
-                        cas.put("etudiantId", n.getEtudiant().getId());
-                        cas.put("etudiantNom", n.getEtudiant().getNom());
-                        cas.put("etudiantPrenom", n.getEtudiant().getPrenom());
+                        cas.put("noteId", noteExam.getId());
+                        cas.put("etudiantId", etu.getId());
+                        cas.put("etudiantNom", etu.getNom());
+                        cas.put("etudiantPrenom", etu.getPrenom());
                         cas.put("elementIntitule", el.getIntitule());
                         cas.put("moduleIntitule", mod.getIntitule());
-                        cas.put("noteExam", n.getValeur());
-                        cas.put("ecartValidation", Math.round((10 - n.getValeur()) * 100.0) / 100.0);
-                        cas.put("isRachete", n.isRachete());
-                        cas.put("motifRachat", n.getMotifRachat());
+                        cas.put("noteElement", noteElement);
+                        cas.put("noteExam", noteExam.getValeur());
+                        cas.put("ecartValidation", noteCalculService.ecartValidation(noteElement));
+                        cas.put("isRachete", noteExam.isRachete());
+                        cas.put("motifRachat", noteExam.getMotifRachat());
+                        cas.put("noteModule", noteCalculService.calculerNoteModule(mod.getId(), etu.getId()));
                         casLimites.add(cas);
                     }
                 }
             }
         }
 
-        // Trier par ecart le plus petit (plus proche de 10)
+        // Trier par ecart le plus petit (plus proche de 12)
         casLimites.sort((a, b) -> Double.compare((double) a.get("ecartValidation"), (double) b.get("ecartValidation")));
 
         return ResponseEntity.ok(casLimites);
@@ -233,7 +271,28 @@ public class ResponsableModuleController {
 
     @PostMapping("/relance")
     public ResponseEntity<Map<String, String>> relancerEnseignant(
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            Authentication auth) {
+
+        // Persister la relance en base
+        User expediteur = userRepository.findByEmail(auth.getName()).orElseThrow();
+        User enseignant = userRepository.findByEmail(request.get("email")).orElse(null);
+
+        if (enseignant != null) {
+            Relance relance = Relance.builder()
+                    .enseignant(enseignant)
+                    .expediteur(expediteur)
+                    .moduleIntitule(request.get("moduleIntitule"))
+                    .elementIntitule(request.get("elementIntitule"))
+                    .message("La saisie des notes pour l'element \"" + request.get("elementIntitule")
+                            + "\" du module \"" + request.get("moduleIntitule") + "\" est en retard. "
+                            + "Merci de proceder a la saisie dans les plus brefs delais.")
+                    .lu(false)
+                    .build();
+            relanceRepository.save(relance);
+        }
+
+        // Envoyer l'email de relance
         emailService.sendRelanceEmail(
                 request.get("email"),
                 request.get("enseignantNom"),
@@ -241,6 +300,274 @@ public class ResponsableModuleController {
                 request.get("elementIntitule")
         );
         return ResponseEntity.ok(Map.of("message", "Relance envoyee avec succes"));
+    }
+
+    /**
+     * Transmettre les notes d'un module au Chef de Filiere
+     * Change le statut du module de EN_COURS vers TRANSMIS_CF
+     */
+    @PostMapping("/transmettre-cf/{moduleId}")
+    @Transactional
+    public ResponseEntity<Map<String, String>> transmettreAuCF(
+            @PathVariable Long moduleId, Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        // Verifier que le RM est bien le responsable de ce module
+        if (!module.getResponsable().getId().equals(rm.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Vous n'etes pas le responsable de ce module"));
+        }
+
+        // Verifier que le module est en cours
+        if (module.getStatut() != ModuleStatut.EN_COURS) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ce module a deja ete transmis (statut: " + module.getStatut().name() + ")"));
+        }
+
+        module.setStatut(ModuleStatut.TRANSMIS_CF);
+        module.setDateTransmissionCF(java.time.LocalDateTime.now());
+        moduleRepository.save(module);
+
+        return ResponseEntity.ok(Map.of("message", "Module \"" + module.getIntitule() + "\" transmis au Chef de Filiere avec succes"));
+    }
+
+    /**
+     * Liste des modules du RM avec leur statut (pour la page suivi/transmission)
+     */
+    @GetMapping("/mes-modules")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getMesModules(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Module mod : modules) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", mod.getId());
+            map.put("code", mod.getCode());
+            map.put("intitule", mod.getIntitule());
+            map.put("semestre", mod.getSemestre());
+            map.put("statut", mod.getStatut().name());
+            result.add(map);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Vue par module : liste des etudiants avec statut (ADMIS / RATTRAPAGE / BLOQUE)
+     */
+    @GetMapping("/module/{moduleId}/etudiants-statut")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getEtudiantsStatutModule(
+            @PathVariable Long moduleId, Authentication auth) {
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new RuntimeException("Module introuvable"));
+
+        String filiereCode = module.getFiliere().getCode().toLowerCase().replace("&", "");
+        List<User> filiereEtudiants = userRepository.findAll().stream()
+                .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> etudiants = new ArrayList<>();
+        int admisCount = 0, rattrapageCount = 0, bloqueCount = 0;
+
+        for (User etu : filiereEtudiants) {
+            double noteModule = noteCalculService.calculerNoteModule(moduleId, etu.getId());
+            if (noteModule <= 0) continue;
+
+            String statut;
+            List<String> elementsRattrapage = new ArrayList<>();
+            boolean hasBlocked = false;
+
+            List<ElementModule> elements = elementModuleRepository.findByModuleId(moduleId);
+            for (ElementModule el : elements) {
+                var noteOpt = noteRepository.findByEtudiantIdAndElementModuleIdAndTypeEvaluation(
+                        etu.getId(), el.getId(), TypeEvaluation.EXAM);
+                if (noteOpt.isPresent() && noteOpt.get().isBlockedByArticle39()) {
+                    hasBlocked = true;
+                }
+            }
+
+            if (hasBlocked) {
+                statut = "BLOQUE";
+                bloqueCount++;
+            } else if (noteModule >= 12.0) {
+                statut = "ADMIS";
+                admisCount++;
+            } else {
+                statut = "RATTRAPAGE";
+                rattrapageCount++;
+                List<Map<String, Object>> elemRatt = noteCalculService.getElementsARattraper(moduleId, etu.getId());
+                elementsRattrapage = elemRatt.stream()
+                        .map(e -> (String) e.get("elementIntitule"))
+                        .collect(Collectors.toList());
+            }
+
+            Map<String, Object> etuMap = new HashMap<>();
+            etuMap.put("etudiantId", etu.getId());
+            etuMap.put("nom", etu.getNom());
+            etuMap.put("prenom", etu.getPrenom());
+            etuMap.put("noteModule", noteModule);
+            etuMap.put("statut", statut);
+            etuMap.put("elementsRattrapage", elementsRattrapage);
+            etudiants.add(etuMap);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("moduleId", module.getId());
+        result.put("moduleIntitule", module.getIntitule());
+        result.put("moduleCode", module.getCode());
+        result.put("semestre", module.getSemestre());
+        result.put("totalEtudiants", etudiants.size());
+        result.put("admis", admisCount);
+        result.put("rattrapage", rattrapageCount);
+        result.put("bloques", bloqueCount);
+        result.put("etudiants", etudiants);
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Liste des etudiants en rattrapage pour TOUS les modules du RM
+     */
+    @GetMapping("/etudiants-rattrapage")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getEtudiantsRattrapage(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Module mod : modules) {
+            String filiereCode = mod.getFiliere().getCode().toLowerCase().replace("&", "");
+            List<User> filiereEtudiants = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail().startsWith(filiereCode + "."))
+                    .collect(Collectors.toList());
+
+            for (User etu : filiereEtudiants) {
+                double noteModule = noteCalculService.calculerNoteModule(mod.getId(), etu.getId());
+                if (noteModule <= 0 || noteModule >= 12.0) continue;
+
+                List<Map<String, Object>> elementsRatt = noteCalculService.getElementsARattraper(mod.getId(), etu.getId());
+                if (elementsRatt.isEmpty()) continue;
+
+                Map<String, Object> etuMap = new HashMap<>();
+                etuMap.put("etudiantId", etu.getId());
+                etuMap.put("nom", etu.getNom());
+                etuMap.put("prenom", etu.getPrenom());
+                etuMap.put("noteModule", noteModule);
+                etuMap.put("moduleIntitule", mod.getIntitule());
+                etuMap.put("moduleCode", mod.getCode());
+                etuMap.put("semestre", mod.getSemestre());
+                etuMap.put("elementsRattrapage", elementsRatt);
+                etuMap.put("nbElementsRattrapage", elementsRatt.size());
+                result.add(etuMap);
+            }
+        }
+
+        result.sort((a, b) -> Double.compare((double) a.get("noteModule"), (double) b.get("noteModule")));
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Proxy vers le service RAG pour les questions reglementaires
+     */
+    @GetMapping("/rag-query")
+    public ResponseEntity<Map<String, Object>> ragQuery(@RequestParam String question) {
+        String aiServiceUrl = "http://ai-service:8000";
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = org.springframework.web.reactive.function.client.WebClient.create(aiServiceUrl)
+                    .post()
+                    .uri("/api/rag/query")
+                    .bodyValue(Map.of("question", question))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "reponse", "Service IA temporairement indisponible. Veuillez reessayer.",
+                    "sources", java.util.Collections.emptyList(),
+                    "confiance", 0.0
+            ));
+        }
+    }
+
+    /**
+     * Historique des rachats effectues (pour tracabilite PV)
+     */
+    @GetMapping("/historique-rachats")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getHistoriqueRachats(Authentication auth) {
+        User rm = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Module> modules = moduleRepository.findByResponsableId(rm.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Module mod : modules) {
+            List<ElementModule> elements = elementModuleRepository.findByModuleId(mod.getId());
+            for (ElementModule el : elements) {
+                List<Note> notes = noteRepository.findByElementModuleId(el.getId());
+                for (Note n : notes) {
+                    if (n.isRachete()) {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("noteId", n.getId());
+                        map.put("etudiantNom", n.getEtudiant().getNom());
+                        map.put("etudiantPrenom", n.getEtudiant().getPrenom());
+                        map.put("elementIntitule", el.getIntitule());
+                        map.put("moduleIntitule", mod.getIntitule());
+                        map.put("noteAvantRachat", n.getNoteAvantRachat());
+                        map.put("noteApresRachat", n.getValeur());
+                        map.put("motifRachat", n.getMotifRachat());
+                        map.put("dateRachat", n.getUpdatedAt() != null ? n.getUpdatedAt().toString() : null);
+                        result.add(map);
+                    }
+                }
+            }
+        }
+
+        // Trier par date (plus recent d'abord)
+        result.sort((a, b) -> {
+            String da = (String) a.get("dateRachat");
+            String db = (String) b.get("dateRachat");
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Proxy vers le service IA pour l'analyse d'un etudiant (deliberation)
+     */
+    @PostMapping("/analyse-ia")
+    public ResponseEntity<Map<String, Object>> analyseIA(@RequestBody Map<String, Object> request) {
+        String aiServiceUrl = "http://ai-service:8000";
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = org.springframework.web.reactive.function.client.WebClient.create(aiServiceUrl)
+                    .post()
+                    .uri("/api/rag/analyse-etudiant")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "resume", "Erreur service IA",
+                    "elements", java.util.Collections.emptyList(),
+                    "elements_rattrapage", java.util.Collections.emptyList(),
+                    "simulation", Map.of("avant", 0, "apres", 0, "elements_modifies", java.util.Collections.emptyList()),
+                    "recommandation", "RATTRAPAGE",
+                    "justification", "Service IA temporairement indisponible. Analyse basee sur les regles par defaut.",
+                    "confiance", 0.5
+            ));
+        }
     }
 
     /**

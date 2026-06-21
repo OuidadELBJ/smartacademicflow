@@ -3,14 +3,18 @@ package ma.ensias.smartacademicflow.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import ma.ensias.smartacademicflow.domain.entity.Absence;
+import ma.ensias.smartacademicflow.domain.entity.AuditLog;
 import ma.ensias.smartacademicflow.domain.entity.ElementModule;
+import ma.ensias.smartacademicflow.domain.entity.Relance;
 import ma.ensias.smartacademicflow.domain.entity.User;
 import ma.ensias.smartacademicflow.domain.enums.Role;
 import ma.ensias.smartacademicflow.domain.enums.TypeEvaluation;
 import ma.ensias.smartacademicflow.dto.AbsenceRequest;
 import ma.ensias.smartacademicflow.dto.NoteDTO;
 import ma.ensias.smartacademicflow.dto.NoteSaisieRequest;
+import ma.ensias.smartacademicflow.repository.AuditLogRepository;
 import ma.ensias.smartacademicflow.repository.ElementModuleRepository;
+import ma.ensias.smartacademicflow.repository.RelanceRepository;
 import ma.ensias.smartacademicflow.repository.UserRepository;
 import ma.ensias.smartacademicflow.service.AbsenceService;
 import ma.ensias.smartacademicflow.service.NoteService;
@@ -31,6 +35,8 @@ public class EnseignantController {
     private final AbsenceService absenceService;
     private final ElementModuleRepository elementModuleRepository;
     private final UserRepository userRepository;
+    private final RelanceRepository relanceRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @GetMapping("/mes-elements")
     @Transactional(readOnly = true)
@@ -149,5 +155,98 @@ public class EnseignantController {
         }
 
         return ResponseEntity.ok(allAbsences);
+    }
+
+    /**
+     * Liste des relances recues par l'enseignant connecte
+     */
+    @GetMapping("/mes-relances")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getMesRelances(Authentication auth) {
+        User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<Relance> relances = relanceRepository.findByEnseignantIdOrderByCreatedAtDesc(enseignant.getId());
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Relance r : relances) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", r.getId());
+            map.put("moduleIntitule", r.getModuleIntitule());
+            map.put("elementIntitule", r.getElementIntitule());
+            map.put("message", r.getMessage());
+            map.put("lu", r.isLu());
+            map.put("expediteurNom", r.getExpediteur().getNom() + " " + r.getExpediteur().getPrenom());
+            map.put("expediteurEmail", r.getExpediteur().getEmail());
+            map.put("dateEnvoi", r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
+            result.add(map);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Marquer une relance comme lue
+     */
+    @PatchMapping("/relances/{relanceId}/lire")
+    public ResponseEntity<Map<String, String>> marquerRelanceLue(
+            @PathVariable Long relanceId, Authentication auth) {
+        User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
+        Relance relance = relanceRepository.findById(relanceId).orElseThrow();
+
+        // Verifier que la relance appartient bien a cet enseignant
+        if (!relance.getEnseignant().getId().equals(enseignant.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Acces refuse"));
+        }
+
+        relance.setLu(true);
+        relanceRepository.save(relance);
+        return ResponseEntity.ok(Map.of("message", "Relance marquee comme lue"));
+    }
+
+    /**
+     * Nombre de relances non lues
+     */
+    @GetMapping("/relances/non-lues/count")
+    public ResponseEntity<Map<String, Long>> countRelancesNonLues(Authentication auth) {
+        User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
+        long count = relanceRepository.countByEnseignantIdAndLuFalse(enseignant.getId());
+        return ResponseEntity.ok(Map.of("count", count));
+    }
+
+    /**
+     * Historique des modifications de notes (audit trail) pour l'enseignant connecte
+     */
+    @GetMapping("/historique-notes")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getHistoriqueNotes(Authentication auth) {
+        User enseignant = userRepository.findByEmail(auth.getName()).orElseThrow();
+        List<ElementModule> elements = elementModuleRepository.findByEnseignantId(enseignant.getId());
+
+        // Get all audit logs for notes of this enseignant's elements
+        List<AuditLog> allLogs = auditLogRepository.findByUserId(enseignant.getId());
+
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (AuditLog log : allLogs) {
+            if (!"Note".equals(log.getEntityType())) continue;
+
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", log.getId());
+            map.put("action", log.getAction());
+            map.put("ancienneValeur", log.getAncienneValeur());
+            map.put("nouvelleValeur", log.getNouvelleValeur());
+            map.put("motif", log.getMotif());
+            map.put("date", log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
+            result.add(map);
+        }
+
+        // Trier par date desc
+        result.sort((a, b) -> {
+            String da = (String) a.get("date");
+            String db = (String) b.get("date");
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
+
+        return ResponseEntity.ok(result);
     }
 }
